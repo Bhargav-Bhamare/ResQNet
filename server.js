@@ -30,6 +30,96 @@ app.get("/api/db-health", (req, res) => {
   });
 });
 
+
+ // Evaluate evidence using reports stored in MongoDB.
+app.post("/api/evidence/evaluate-from-reports", async (req, res) => {
+  try {
+    const {
+      area,
+      expectedReports,
+      windowHours,
+      channelStatus,
+    } = req.body;
+
+    const validStatuses = [
+      "healthy",
+      "degraded",
+      "failed",
+      "unknown",
+    ];
+
+    if (
+      typeof area !== "string" ||
+      !area.trim() ||
+      !Number.isInteger(expectedReports) ||
+      expectedReports < 0 ||
+      typeof windowHours !== "number" ||
+      !Number.isFinite(windowHours) ||
+      windowHours <= 0 ||
+      windowHours > 720 ||
+      !validStatuses.includes(channelStatus)
+    ) {
+      return res.status(400).json({
+        error:
+          "Provide area, a non-negative integer expectedReports, windowHours between 0 and 720, and a valid channelStatus.",
+      });
+    }
+
+    const now = new Date();
+    const windowStart = new Date(
+      now.getTime() - windowHours * 60 * 60 * 1000
+    );
+
+    // Escape user input before using it in a regular expression.
+    const escapedArea = area.trim().replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+
+    // Count real reports for this area within the selected window.
+    const receivedReports = await Report.countDocuments({
+      location: {
+        $regex: `^${escapedArea}$`,
+        $options: "i",
+      },
+      createdAt: {
+        $gte: windowStart,
+        $lte: now,
+      },
+      isSynthetic: { $ne: true },
+    });
+
+    const result = evaluateEvidence({
+      area: area.trim(),
+      expectedReports,
+      receivedReports,
+      channelStatus,
+    });
+
+    const investigation = await Investigation.create(result);
+
+    return res.status(201).json({
+      message: "Database-backed evidence evaluation completed.",
+      window: {
+        hours: windowHours,
+        from: windowStart,
+        to: now,
+      },
+      investigation,
+    });
+  } catch (error) {
+    console.error(
+      "Database-backed evidence evaluation failed:",
+      error.message
+    );
+
+    return res.status(500).json({
+      error: "Unable to evaluate stored reports.",
+    });
+  }
+});
+
+
 // Evaluate an evidence situation and save the result.
 app.post("/api/evidence/evaluate", async (req, res) => {
   try {
