@@ -1,0 +1,25 @@
+{
+  "name": "resqnet",
+  "version": "1.0.0",
+  "description": "ResQNet — Public Health Outbreak &amp; Crisis Response Network is a community-driven platform designed to detect health threats early and improve coordination between citizens, healthcare teams, and government authorities.",
+  "homepage": "https://github.com/Bhargav-Bhamare/ResQNet#readme",
+  "bugs": {
+    "url": "https://github.com/Bhargav-Bhamare/ResQNet/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bhargav-Bhamare/ResQNet.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "ejs": "^7.0.2",
+    "express": "^5.3.0",
+    "mongoose": "^9.11.4"
+  }
+}
