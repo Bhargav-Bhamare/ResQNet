@@ -158,62 +158,122 @@ function detectDisasterLocation() {
 }
 
 // Form Submission Functions
-function submitSymptoms(event) {
+
+async function submitSymptoms(event) {
     event.preventDefault();
-    
+
     const form = event.target;
     const formData = new FormData(form);
     const symptoms = formData.getAll('symptoms');
     const severity = formData.get('severity');
-    const location = document.getElementById('location').value;
-    
+    const location = document.getElementById('location').value.trim();
+    const description = formData.get('description') || '';
+
     if (symptoms.length === 0) {
         alert('Please select at least one symptom.');
         return;
     }
-    
-    // Simulate form submission
+
+    if (!location || location.toLowerCase().includes('detecting')) {
+        alert('Please confirm your location before submitting.');
+        return;
+    }
+
     showLoadingMessage('Submitting your report...');
-    
-    setTimeout(() => {
+
+    try {
+        const response = await fetch('/api/reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                reportType: 'symptom',
+                symptoms,
+                severity,
+                description,
+                location
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Could not submit report.');
+        }
+
         hideLoadingMessage();
-        showSuccessMessage('Report submitted successfully! A healthcare professional will contact you within 15 minutes.');
+        showSuccessMessage('Your symptom report has been saved successfully.');
         form.reset();
-        detectLocation(); // Reset location
-    }, 2000);
+        detectLocation();
+    } catch (error) {
+        hideLoadingMessage();
+        alert('Report submission failed: ' + error.message);
+    }
 }
 
-function submitDisaster(event) {
+
+async function submitDisaster(event) {
     event.preventDefault();
-    
+
     const form = event.target;
     const formData = new FormData(form);
+
     const disasterType = formData.get('disaster-type');
     const severity = formData.get('severity');
-    const description = formData.get('description');
-    const location = document.getElementById('disaster-location').value;
-    
+    const description = (formData.get('description') || '').trim();
+    const location = document.getElementById('disaster-location').value.trim();
+
     if (!disasterType || !severity) {
         alert('Please fill in all required fields.');
         return;
     }
-    
-    // Simulate form submission
-    showLoadingMessage('Reporting disaster...');
-    
-    setTimeout(() => {
+
+    if (!location || location.toLowerCase().includes('detecting')) {
+        alert('Please confirm your location before submitting.');
+        return;
+    }
+
+    showLoadingMessage('Submitting disaster report...');
+
+    try {
+        const response = await fetch('/api/reports', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                reportType: 'disaster',
+                disasterType,
+                severity,
+                description,
+                location,
+                source: 'resqnet-web'
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Could not submit disaster report.');
+        }
+
         hideLoadingMessage();
-        showSuccessMessage('Disaster report submitted! Emergency services have been notified and are responding.');
+        showSuccessMessage(
+            'Disaster report saved successfully. This prototype has not automatically notified emergency services.'
+        );
+
         form.reset();
-        detectDisasterLocation(); // Reset location
-        
-        // Clear photo preview
+        detectDisasterLocation();
+
         const photoPreview = document.getElementById('photo-preview');
         if (photoPreview) {
             photoPreview.innerHTML = '';
             photoPreview.classList.add('hidden');
         }
-    }, 2000);
+
+    } catch (error) {
+        hideLoadingMessage();
+        alert('Disaster report submission failed: ' + error.message);
+    }
 }
 
 // Photo Upload Function
