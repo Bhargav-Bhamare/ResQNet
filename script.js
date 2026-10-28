@@ -11,7 +11,22 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeApp() {
     // Set up navigation
     setupNavigation();
-    
+     // NULL SIGNAL: connect the evaluation form and history button.
+    const nullSignalForm = document.getElementById('null-signal-form');
+    const nullSignalRefreshButton = document.getElementById('ns-refresh-history');
+    const nullSignalNavLink = document.querySelector('.nav-link[href="#null-signal"]');
+
+    if (nullSignalForm) {
+        nullSignalForm.addEventListener('submit', submitNullSignalEvaluation);
+    }
+
+    if (nullSignalRefreshButton) {
+        nullSignalRefreshButton.addEventListener('click', loadNullSignalHistory);
+    }
+
+    if (nullSignalNavLink) {
+        nullSignalNavLink.addEventListener('click', loadNullSignalHistory);
+    }
     // Initialize location detection
     detectLocation();
     detectDisasterLocation();
@@ -528,3 +543,235 @@ document.addEventListener('DOMContentLoaded', () => {
         initMap();
     }
 });
+
+
+
+
+
+
+
+async function submitNullSignalEvaluation(event) {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const message = document.getElementById('ns-form-message');
+    const resultContainer = document.getElementById('ns-latest-result');
+    const formData = new FormData(form);
+
+    const payload = {
+        area: String(formData.get('area') || '').trim(),
+        expectedReports: Number(formData.get('expectedReports')),
+        windowHours: Number(formData.get('windowHours')),
+        channelStatus: String(formData.get('channelStatus') || 'unknown')
+    };
+
+    if (
+        !payload.area ||
+        !Number.isInteger(payload.expectedReports) ||
+        payload.expectedReports < 0 ||
+        !Number.isFinite(payload.windowHours) ||
+        payload.windowHours <= 0 ||
+        payload.windowHours > 720
+    ) {
+        message.textContent = 'Please enter valid evaluation details.';
+        return;
+    }
+
+    message.textContent = 'Evaluating evidence...';
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+
+    try {
+        const response = await fetch('/api/evidence/evaluate-from-reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Evaluation failed.');
+        }
+
+        message.textContent = data.message || 'Evaluation saved successfully.';
+        renderNullSignalInvestigation(resultContainer, data.investigation);
+
+        await loadNullSignalHistory();
+    } catch (error) {
+        message.textContent = 'Evaluation failed: ' + error.message;
+    } finally {
+        if (submitButton) submitButton.disabled = false;
+    }
+}
+
+
+function renderNullSignalInvestigation(container, investigation) {
+    if (!container) return;
+
+    container.replaceChildren();
+
+    if (!investigation) {
+        container.textContent = 'No investigation data was returned.';
+        return;
+    }
+
+    const heading = document.createElement('h3');
+    heading.textContent = investigation.area || 'Investigation';
+    container.appendChild(heading);
+
+    const details = [
+        ['Status', investigation.status],
+        ['Severity', investigation.severity],
+        ['Expected reports', investigation.expectedReports],
+        ['Received reports', investigation.receivedReports],
+        ['Missing reports', investigation.missingReports],
+        ['Reporting channel', investigation.channelStatus]
+    ];
+
+    const list = document.createElement('dl');
+
+    details.forEach(([label, value]) => {
+        const term = document.createElement('dt');
+        term.textContent = label;
+
+        const description = document.createElement('dd');
+        description.textContent =
+            value === undefined || value === null ? 'Not provided' : String(value);
+
+        list.append(term, description);
+    });
+
+    container.appendChild(list);
+
+    appendNullSignalTextList(
+        container,
+        'Findings',
+        investigation.findings
+    );
+
+    appendNullSignalTextList(
+        container,
+        'Recommended actions',
+        investigation.recommendedActions
+    );
+}
+
+function appendNullSignalTextList(container, headingText, items) {
+    const heading = document.createElement('h4');
+    heading.textContent = headingText;
+    container.appendChild(heading);
+
+    if (!Array.isArray(items) || items.length === 0) {
+        const emptyMessage = document.createElement('p');
+        emptyMessage.textContent = 'No items recorded.';
+        container.appendChild(emptyMessage);
+        return;
+    }
+
+    const list = document.createElement('ul');
+
+    items.forEach(item => {
+        const entry = document.createElement('li');
+
+        entry.textContent = typeof item === 'string'
+            ? item
+            : JSON.stringify(item);
+
+        list.appendChild(entry);
+    });
+
+    container.appendChild(list);
+}
+
+
+async function loadNullSignalHistory() {
+    const container = document.getElementById('ns-investigation-history');
+    const message = document.getElementById('ns-history-message');
+
+    if (!container) return;
+
+    container.textContent = 'Loading investigation history...';
+
+    if (message) message.textContent = '';
+
+    try {
+        const response = await fetch('/api/evidence/investigations');
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Could not load investigation history.');
+        }
+
+        const investigations = Array.isArray(data.investigations)
+            ? data.investigations
+            : [];
+
+        container.replaceChildren();
+
+        if (investigations.length === 0) {
+            container.textContent = 'No investigations have been saved yet.';
+        }
+
+        investigations.forEach(investigation => {
+            const card = document.createElement('article');
+
+            const heading = document.createElement('h3');
+            heading.textContent = investigation.area || 'Unknown area';
+            card.appendChild(heading);
+
+            const summary = document.createElement('p');
+            summary.textContent =
+                'Status: ' + (investigation.status || 'Unknown') +
+                ' | Severity: ' + (investigation.severity || 'Unknown');
+            card.appendChild(summary);
+
+            const counts = document.createElement('p');
+            counts.textContent =
+                'Expected: ' + displayNullSignalValue(investigation.expectedReports) +
+                ' | Received: ' + displayNullSignalValue(investigation.receivedReports) +
+                ' | Missing: ' + displayNullSignalValue(investigation.missingReports);
+            card.appendChild(counts);
+
+            const date = document.createElement('p');
+            date.textContent = 'Created: ' + formatNullSignalDate(investigation.createdAt);
+            card.appendChild(date);
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'View details';
+
+            button.addEventListener('click', () => {
+                renderNullSignalInvestigation(
+                    document.getElementById('ns-latest-result'),
+                    investigation
+                );
+            });
+
+            card.appendChild(button);
+            container.appendChild(card);
+        });
+
+        if (message) {
+            message.textContent = 'Loaded ' + investigations.length + ' investigation(s).';
+        }
+    } catch (error) {
+        container.textContent = 'Could not load investigation history.';
+        if (message) message.textContent = error.message;
+    }
+}
+
+function displayNullSignalValue(value) {
+    return value === undefined || value === null ? 'N/A' : String(value);
+}
+
+function formatNullSignalDate(value) {
+    if (!value) return 'Not available';
+
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime())
+        ? 'Not available'
+        : date.toLocaleString();
+}
