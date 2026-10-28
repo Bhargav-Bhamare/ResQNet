@@ -1,0 +1,475 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQNet - Rapid Emergency Service & Quick-action Network</title>
+    <meta name="description" content="Real-time health and disaster reporting system connecting communities with emergency services for faster, life-saving responses.">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    
+
+
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <!-- <div class="logo">
+                    <i class="fas fa-heart"></i>
+                </div> -->
+                <span class="brand-text">ResQNet</span>
+            </div>
+            
+            <div class="nav-menu" id="nav-menu">
+                <a href="#home" class="nav-link active">Home</a>
+                <a href="#report-symptoms" class="nav-link">Report Symptoms</a>
+                <a href="#live-map" class="nav-link">Live Map</a>
+                <a href="#disaster-reporting" class="nav-link">Report Disaster</a>
+                <button class="emergency-btn" onclick="showPage('emergency-sos')">
+                    Emergency SOS
+                </button>
+            </div>
+            
+            <div class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <i class="fas fa-bars"></i>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Home Page -->
+    <div id="home" class="page active">
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <div class="hero-text">
+                        <h1>ResQNet</h1>
+                        <h2>Rapid Emergency Service & Quick-action Network</h2>
+                        <p>Real-time health and disaster reporting system connecting communities with emergency services for faster, life-saving responses.</p>
+                        
+                        <div class="cta-buttons">
+                            <button class="btn btn-accent" onclick="showPage('report-symptoms')">
+                                <i class="fas fa-stethoscope"></i>
+                                Report Symptoms
+                            </button>
+                            <button class="btn btn-hero" onclick="showPage('live-map')">
+                                <i class="fas fa-map-marker-alt"></i>
+                                View Live Map
+                            </button>
+                        </div>
+                        
+                        <button class="btn btn-emergency full-width" onclick="showPage('emergency-sos')">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Emergency SOS
+                        </button>
+                    </div>
+                    
+                    <div class="hero-image">
+                        <img src="/ResQNet/Hero2.0.png" alt="Emergency Response Network">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section class="how-it-works">
+            <div class="container">
+                <div class="section-header">
+                    <h2>How ResQNet Works</h2>
+                    <p>Three simple steps to get help when you need it most, connecting you with the right resources instantly.</p>
+                </div>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <h3>Quick Reporting</h3>
+                        <p>Report symptoms or disasters with just a few taps. Auto-location detection makes it fast and accurate.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </div>
+                        <h3>Real-time Mapping</h3>
+                        <p>View live heatmaps of health outbreaks and disaster zones to stay informed and safe.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-phone"></i>
+                        </div>
+                        <h3>Instant Connection</h3>
+                        <p>Connect immediately with healthcare professionals or emergency services when you need help most.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats Section -->
+        <section class="stats">
+            <div class="container">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-number">24/7</div>
+                        <div class="stat-label">Emergency Support</div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-number">&lt;2min</div>
+                        <div class="stat-label">Response Time</div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="stat-number">100%</div>
+                        <div class="stat-label">Secure & Private</div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="stat-number">Real-time</div>
+                        <div class="stat-label">Live Updates</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Report Symptoms Page -->
+    <div id="report-symptoms" class="page">
+        <section class="form-section">
+            <div class="container">
+                <div class="form-container">
+                    <div class="form-header">
+                        <h1>Report Symptoms</h1>
+                        <p>Help us track health patterns in your area. Your report helps protect your community.</p>
+                    </div>
+                    
+                    <form class="symptom-form" onsubmit="submitSymptoms(event)">
+                        <div class="form-group">
+                            <label>Select your symptoms (check all that apply):</label>
+                            <div class="checkbox-grid">
+                                <label class="checkbox-item">
+                                    <input type="checkbox" name="symptoms" value="fever">
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-thermometer-half"></i>
+                                    Fever
+                                </label>
+                                
+                                <label class="checkbox-item">
+                                    <input type="checkbox" name="symptoms" value="cough">
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-lungs"></i>
+                                    Cough
+                                </label>
+                                
+                                <label class="checkbox-item">
+                                    <input type="checkbox" name="symptoms" value="headache">
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-head-side-cough"></i>
+                                    Headache
+                                </label>
+                                
+                                <label class="checkbox-item">
+                                    <input type="checkbox" name="symptoms" value="chest-pain">
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-heartbeat"></i>
+                                    Chest Pain
+                                </label>
+                                
+                                <label class="checkbox-item">
+                                    <input type="checkbox" name="symptoms" value="nausea">
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-dizzy"></i>
+                                    Nausea
+                                </label>
+                                
+                                <label class="checkbox-item">
+                                    <input type="checkbox" name="symptoms" value="rash">
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-hand-dots"></i>
+                                    Rash
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Other</label>
+                            <textarea name="description" placeholder="Describe what you're suffering" rows="2"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Severity Level:</label>
+                            <select name="severity" required>
+                                <option value="">Select severity</option>
+                                <option value="mild">Mild</option>
+                                <option value="moderate">Moderate</option>
+                                <option value="severe">Severe</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Location:</label>
+                            <div class="location-input">
+                                <input type="text" id="location" placeholder="Detecting location..." readonly>
+                                <button type="button" class="location-btn" onclick="detectLocation()">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-accent full-width">
+                            <i class="fas fa-user-md"></i>
+                            Submit & Connect to Doctor
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Live Map Page -->
+    <div id="live-map" class="page">
+        <section class="map-section">
+            <div class="container">
+                <div class="map-header">
+                    <h1>Live Emergency Map</h1>
+                    <div class="map-controls">
+                        <select id="map-filter" onchange="filterMap()">
+                            <option value="all">All Incidents</option>
+                            <option value="disease">Disease Outbreaks</option>
+                            <option value="disaster">Natural Disasters</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="map" style="height: 500px; width: 100%;"></div>
+
+                <!-- <div class="map-container">
+                    <div id="map" class="map-placeholder">
+                        <div class="map-overlay">
+                            <h3>Interactive Map View</h3>
+                            <p>Real-time heatmap showing:</p>
+                            <div class="legend">
+                                <div class="legend-item">
+                                    <span class="legend-color disease"></span>
+                                    Disease Outbreaks
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-color disaster"></span>
+                                    Natural Disasters
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-color emergency"></span>
+                                    Emergency Zones
+                                </div>
+                            </div>
+                            
+                            <!-- Sample markers -->
+                            <!-- <div class="map-marker disease" style="top: 30%; left: 40%;">
+                                <i class="fas fa-virus"></i>
+                                <div class="marker-tooltip">Flu Outbreak - 23 cases</div>
+                            </div>
+                            <div class="map-marker disaster" style="top: 60%; left: 70%;">
+                                <i class="fas fa-fire"></i>
+                                <div class="marker-tooltip">Wildfire - Active</div>
+                            </div>
+                            <div class="map-marker emergency" style="top: 45%; left: 25%;">
+                                <i class="fas fa-ambulance"></i>
+                                <div class="marker-tooltip">Emergency Response</div>
+                            </div>
+                        </div>
+                    </div>
+                </div> --> 
+                
+                <div class="incidents-list">
+                    <h3>Recent Incidents</h3>
+                    <div class="incident-item">
+                        <div class="incident-icon disease">
+                            <i class="fas fa-virus"></i>
+                        </div>
+                        <div class="incident-info">
+                            <div class="incident-title">Flu Outbreak</div>
+                            <div class="incident-location">Sambhaji Nagar</div>
+                            <div class="incident-time">2 hours ago</div>
+                        </div>
+                    </div>
+                    
+                    <div class="incident-item">
+                        <div class="incident-icon disaster">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <div class="incident-info">
+                            <div class="incident-title">Forest Fire</div>
+                            <div class="incident-location">Igatpuri,Nasik</div>
+                            <div class="incident-time">4 hours ago</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Emergency SOS Page -->
+    <div id="emergency-sos" class="page">
+        <section class="emergency-section">
+            <div class="container">
+                <div class="emergency-container">
+                    <h1>Emergency SOS</h1>
+                    <p>Press and hold the button below to send your location to emergency services</p>
+                    
+                    <div class="sos-container">
+                        <button id="sos-button" class="sos-button" onmousedown="startSOS()" onmouseup="cancelSOS()" ontouchstart="startSOS()" ontouchend="cancelSOS()">
+                            <div class="sos-icon">
+                                <i class="fas fa-exclamation"></i>
+                            </div>
+                            <div class="sos-text">SOS</div>
+                            <div class="sos-subtext">EMERGENCY</div>
+                        </button>
+                        
+                        <div id="countdown" class="countdown hidden">
+                            <div class="countdown-circle">
+                                <div class="countdown-number">3</div>
+                            </div>
+                            <p>Release to cancel</p>
+                        </div>
+                    </div>
+                    
+                    <div class="emergency-info">
+                        <div class="info-item">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>Location will be sent automatically</span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-phone"></i>
+                            <span>Emergency contacts will be notified</span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-ambulance"></i>
+                            <span>Nearest hospital will be contacted</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Disaster Reporting Page -->
+    <div id="disaster-reporting" class="page">
+        <section class="form-section">
+            <div class="container">
+                <div class="form-container">
+                    <div class="form-header">
+                        <h1>Report Disaster</h1>
+                        <p>Help emergency services respond faster by reporting disasters in your area.</p>
+                    </div>
+                    
+                    <form class="disaster-form" onsubmit="submitDisaster(event)">
+                        <div class="form-group">
+                            <label>Disaster Type:</label>
+                            <select name="disaster-type" required>
+                                <option value="">Select disaster type</option>
+                                <option value="flood">🌊 Flood</option>
+                                <option value="earthquake">🏔️ Earthquake</option>
+                                <option value="fire">🔥 Fire</option>
+                                <option value="storm">⛈️ Storm</option>
+                                <option value="landslide">🏔️ Landslide</option>
+                                <option value="other">❓ Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Severity:</label>
+                            <div class="severity-buttons">
+                                <input type="radio" name="severity" value="low" id="low">
+                                <label for="low" class="severity-btn">Low</label>
+                                
+                                <input type="radio" name="severity" value="moderate" id="moderate">
+                                <label for="moderate" class="severity-btn">Moderate</label>
+                                
+                                <input type="radio" name="severity" value="high" id="high">
+                                <label for="high" class="severity-btn">High</label>
+                                
+                                <input type="radio" name="severity" value="critical" id="critical">
+                                <label for="critical" class="severity-btn">Critical</label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Description:</label>
+                            <textarea name="description" placeholder="Describe what you're seeing..." rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Location:</label>
+                            <div class="location-input">
+                                <input type="text" id="disaster-location" placeholder="Detecting location..." readonly>
+                                <button type="button" class="location-btn" onclick="detectDisasterLocation()">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Photo Evidence (Optional):</label>
+                            <div class="file-upload">
+                                <input type="file" id="photo" accept="image/*" onchange="handlePhotoUpload(event)">
+                                <label for="photo" class="file-upload-btn">
+                                    <i class="fas fa-camera"></i>
+                                    Choose Photo
+                                </label>
+                                <div id="photo-preview" class="photo-preview hidden"></div>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-emergency full-width">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Report Now
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <!-- <div class="logo">
+                        <i class="fas fa-heart"></i>
+                    </div> -->
+                    <span class="brand-text">ResQNet</span>
+                </div>
+                <p>Rapid Emergency Service & Quick-action Network - Connecting communities in times of need. <br> ResQNet is a community
+                driven health and safety platform designed to connect<br> people with local doctors, track disease outbreaks and provide instant <br>emergency response tools. <br><br> &copy; 2025 ResQNet
+                <br>Designed with Love by Team Trojans</p>
+            </div>
+        </div>
+    </footer>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- Leaflet Heat plugin -->
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+    <script src="script.js"></script>
+</body>
+</html>
