@@ -90,7 +90,7 @@
                             <i class="fas fa-search"></i>
                         </div>
                         <h3>Quick Reporting</h3>
-                        <p>Report symptoms or disasters with just a few taps. Auto-location detection makes it fast and accurate.</p>
+                        <p>Report symptoms or disasters with just a few taps. Optional location details help provide local context.</p>
                     </div>
                     
                     <div class="feature-card">
@@ -228,8 +228,8 @@
                         <div class="form-group">
                             <label>Location:</label>
                             <div class="location-input">
-                                <input type="text" id="location" placeholder="Detecting location..." readonly>
-                                <button type="button" class="location-btn" onclick="detectLocation()">
+                                <input type="text" id="location" placeholder="Enter location (optional)">
+                                <button type="button" class="location-btn" onclick="focusLocationEntry('location')" aria-label="Enter symptom report location">
                                     <i class="fas fa-map-marker-alt"></i>
                                 </button>
                             </div>
@@ -420,8 +420,8 @@
                         <div class="form-group">
                             <label>Location:</label>
                             <div class="location-input">
-                                <input type="text" id="disaster-location" placeholder="Detecting location..." readonly>
-                                <button type="button" class="location-btn" onclick="detectDisasterLocation()">
+                                <input type="text" id="disaster-location" placeholder="Enter location (optional)">
+                                <button type="button" class="location-btn" onclick="focusLocationEntry('disaster-location')" aria-label="Enter disaster report location">
                                     <i class="fas fa-map-marker-alt"></i>
                                 </button>
                             </div>
@@ -436,6 +436,7 @@
                                     Choose Photo
                                 </label>
                                 <div id="photo-preview" class="photo-preview hidden"></div>
+                                <small>Photo preview only; images are not uploaded with reports yet.</small>
                             </div>
                         </div>
                         

@@ -12,10 +12,6 @@ function initializeApp() {
     // Set up navigation
     setupNavigation();
     
-    // Initialize location detection
-    detectLocation();
-    detectDisasterLocation();
-    
     // Show home page by default
     showPage('home');
 }
@@ -92,128 +88,125 @@ function closeMobileMenu() {
     toggleIcon.className = 'fas fa-bars';
 }
 
-// Location Functions
-function detectLocation() {
-    const locationInput = document.getElementById('location');
-    if (!locationInput) return;
-    
-    locationInput.value = 'Detecting location...';
-    
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                // Simulate reverse geocoding with dummy data
-                const locations = [
-                    'Katraj,Pune,Maharashtra',
-                    'Dadar,Mumbai,Maharashtra',
-                    'Navi Mumbai,Maharashtra',
-                    'Kothrud,Pune,Maharashtra',
-                    'Hinjewadi,Pune,Maharashtra'
-                ];
-                
-                const randomLocation = locations[Math.floor(Math.random() * locations.length)];
-                locationInput.value = randomLocation;
-            },
-            function(error) {
-                locationInput.value = 'Location detection failed. Please enter manually.';
-                locationInput.removeAttribute('readonly');
-            }
-        );
-    } else {
-        locationInput.value = 'Geolocation not supported. Please enter manually.';
-        locationInput.removeAttribute('readonly');
-    }
-}
-
-function detectDisasterLocation() {
-    const locationInput = document.getElementById('disaster-location');
-    if (!locationInput) return;
-    
-    locationInput.value = 'Detecting location...';
-    
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                // Simulate reverse geocoding with dummy data
-                const locations = [
-                    'Himachal Pradesh',
-                    'Kokan East',
-                    'Andhra Pradesh',
-                    'Jammu West',
-                    'Kali Ghati'
-                ];
-                
-                const randomLocation = locations[Math.floor(Math.random() * locations.length)];
-                locationInput.value = randomLocation;
-            },
-            function(error) {
-                locationInput.value = 'Location detection failed. Please enter manually.';
-                locationInput.removeAttribute('readonly');
-            }
-        );
-    } else {
-        locationInput.value = 'Geolocation not supported. Please enter manually.';
-        locationInput.removeAttribute('readonly');
-    }
+// Location is optional and entered manually until a real geocoder is available.
+function focusLocationEntry(inputId) {
+    const locationInput = document.getElementById(inputId);
+    if (locationInput) locationInput.focus();
 }
 
 // Form Submission Functions
-function submitSymptoms(event) {
+async function submitSymptoms(event) {
     event.preventDefault();
     
     const form = event.target;
     const formData = new FormData(form);
     const symptoms = formData.getAll('symptoms');
+    const description = String(formData.get('description') || '').trim();
     const severity = formData.get('severity');
-    const location = document.getElementById('location').value;
+    const location = document.getElementById('location').value.trim();
     
     if (symptoms.length === 0) {
-        alert('Please select at least one symptom.');
+        showErrorMessage('Please select at least one symptom.');
         return;
     }
-    
-    // Simulate form submission
-    showLoadingMessage('Submitting your report...');
-    
-    setTimeout(() => {
-        hideLoadingMessage();
-        showSuccessMessage('Report submitted successfully! A healthcare professional will contact you within 15 minutes.');
-        form.reset();
-        detectLocation(); // Reset location
-    }, 2000);
+
+    if (description.length > 2000) {
+        showErrorMessage('The description must be 2000 characters or fewer.');
+        return;
+    }
+
+    const report = {
+        reportType: 'symptom',
+        symptoms,
+        severity
+    };
+    if (description) report.description = description;
+    if (location) report.location = { region: location };
+
+    await submitReport(form, report, 'Submitting your report...', 'Your symptom report was saved.');
 }
 
-function submitDisaster(event) {
+async function submitDisaster(event) {
     event.preventDefault();
     
     const form = event.target;
     const formData = new FormData(form);
     const disasterType = formData.get('disaster-type');
     const severity = formData.get('severity');
-    const description = formData.get('description');
-    const location = document.getElementById('disaster-location').value;
+    const description = String(formData.get('description') || '').trim();
+    const location = document.getElementById('disaster-location').value.trim();
     
     if (!disasterType || !severity) {
-        alert('Please fill in all required fields.');
+        showErrorMessage('Please select a disaster type and severity.');
         return;
     }
-    
-    // Simulate form submission
-    showLoadingMessage('Reporting disaster...');
-    
-    setTimeout(() => {
-        hideLoadingMessage();
-        showSuccessMessage('Disaster report submitted! Emergency services have been notified and are responding.');
-        form.reset();
-        detectDisasterLocation(); // Reset location
-        
-        // Clear photo preview
+
+    const reportDescription = [disasterType, description].filter(Boolean).join(': ');
+    if (reportDescription.length > 2000) {
+        showErrorMessage('The description and disaster type must total 2000 characters or fewer.');
+        return;
+    }
+
+    const report = {
+        reportType: 'disaster',
+        description: reportDescription,
+        severity
+    };
+    if (location) report.location = { region: location };
+
+    const photoSelected = Boolean(document.getElementById('photo').files.length);
+    const successMessage = photoSelected
+        ? 'Your disaster report was saved. The selected photo was only previewed and was not uploaded.'
+        : 'Your disaster report was saved.';
+
+    await submitReport(form, report, 'Submitting your report...', successMessage, function() {
         const photoPreview = document.getElementById('photo-preview');
         if (photoPreview) {
             photoPreview.innerHTML = '';
             photoPreview.classList.add('hidden');
         }
-    }, 2000);
+    });
+}
+
+async function submitReport(form, report, loadingMessage, successMessage, onSuccess) {
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (!submitButton || submitButton.disabled) return;
+
+    submitButton.disabled = true;
+    showLoadingMessage(loadingMessage);
+
+    try {
+        let response;
+        try {
+            response = await fetch('/api/reports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(report)
+            });
+        } catch (error) {
+            showErrorMessage('Could not reach the report service. Check your connection and try again.');
+            return;
+        }
+
+        if (response.status !== 201) {
+            const result = await response.json().catch(function() { return {}; });
+            let message = 'The report could not be saved. Please try again.';
+            if (response.status === 400) {
+                message = result.error || 'Please review the report details and try again.';
+            } else if (response.status === 503) {
+                message = 'The report service is temporarily unavailable. Your entries have been kept; please try again.';
+            }
+            showErrorMessage(message);
+            return;
+        }
+
+        form.reset();
+        if (onSuccess) onSuccess();
+        showSuccessMessage(successMessage);
+    } finally {
+        hideLoadingMessage();
+        submitButton.disabled = false;
+    }
 }
 
 // Photo Upload Function
@@ -423,6 +416,32 @@ function showSuccessMessage(message) {
             }
         }, 300);
     }, 5000);
+}
+
+function showErrorMessage(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.setAttribute('role', 'alert');
+    errorDiv.textContent = message;
+    errorDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #C0392B;
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 20px rgba(192, 57, 43, 0.3);
+        z-index: 10000;
+        font-weight: 600;
+        text-align: center;
+        max-width: 90%;
+    `;
+    document.body.appendChild(errorDiv);
+
+    setTimeout(() => {
+        if (errorDiv.parentNode) errorDiv.remove();
+    }, 6000);
 }
 
 // Add event listeners for touch events (mobile support)
