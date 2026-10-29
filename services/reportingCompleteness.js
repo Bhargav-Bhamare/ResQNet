@@ -300,9 +300,11 @@ function calculateReportingCompleteness({
       };
     }
 
-    const completenessPercent =
+    const completenessPercent = Math.min(
+      100,
       (receivedReports / source.reportingSchedule.expectedReportsPerPeriod) *
-      100;
+        100,
+    );
     let status;
     if (receivedReports >= source.reportingSchedule.expectedReportsPerPeriod) {
       status = "complete";

@@ -4,6 +4,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const connectToDatabase = require("./config/db");
 const Report = require("./models/Report");
+const reportingCompletenessRouter = require("./routes/reportingCompleteness");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -24,14 +25,14 @@ app.get("/api/db-health", (req, res) => {
   });
 });
 
+app.use("/api/reporting-completeness", reportingCompletenessRouter());
+
 const reportFields = new Set([
   "reportType",
   "description",
   "symptoms",
   "severity",
   "location",
-  "sourceChannel",
-  "sourceId",
   "reportedAt",
 ]);
 const locationFields = new Set([
@@ -54,6 +55,10 @@ function validateSubmissionShape(body) {
   for (const field of Object.keys(body)) {
     if (field === "verificationStatus") {
       return "verificationStatus is assigned by the server.";
+    }
+
+    if (field === "sourceId" || field === "sourceChannel") {
+      return "Public submissions cannot assign reporting-source attribution.";
     }
 
     if (
@@ -237,7 +242,11 @@ async function startServer() {
   });
 }
 
-startServer().catch((error) => {
-  console.error(`Unable to start NULL SIGNAL backend: ${error.message}`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  startServer().catch((error) => {
+    console.error(`Unable to start NULL SIGNAL backend: ${error.message}`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { app };

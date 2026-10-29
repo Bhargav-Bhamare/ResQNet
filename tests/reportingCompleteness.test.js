@@ -236,3 +236,38 @@ test("rejects duplicate configured source codes", () => {
     /Duplicate reporting source code/,
   );
 });
+
+test("caps completeness at 100 percent without capping received reports", () => {
+  const reports = Array.from({ length: 12 }, (_, index) =>
+    report(`excess-${index}`, "CLINIC-001", "2026-10-29T09:00:00.000Z"),
+  );
+  const result = calculateReportingCompleteness({
+    sources: [source()],
+    reports,
+    trustedReportIds: reports.map((item) => item._id),
+    now: "2026-10-29T12:00:00.000Z",
+  })[0];
+
+  assert.equal(result.receivedReports, 12);
+  assert.equal(result.completenessPercent, 100);
+});
+
+test("rejects zero expected reports instead of relaxing source constraints", () => {
+  assert.throws(
+    () =>
+      calculateReportingCompleteness({
+        sources: [
+          source({
+            reportingSchedule: {
+              frequency: "daily",
+              expectedReportsPerPeriod: 0,
+              timezone: "UTC",
+            },
+          }),
+        ],
+        reports: [],
+        now: "2026-10-29T12:00:00.000Z",
+      }),
+    /invalid schedule/,
+  );
+});
