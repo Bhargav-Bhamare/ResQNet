@@ -81,6 +81,45 @@ port instead. Verify the app and database with:
 The server requires MongoDB to start. If startup fails, check `MONGODB_URI`,
 database credentials, DNS/connectivity, and the database network access list.
 
+## Start the isolated demo workspace
+
+To try the investigator workspace without using the database configured by
+the normal `npm start`, seed an isolated `resqnet_demo` database on the same
+MongoDB server:
+
+```powershell
+npm run demo:seed
+```
+
+The command refuses to write if the isolated database already contains
+application records. It creates a demo admin, one daily reporting source,
+eight completed historical periods, and two current-period reports. All seeded
+reports are explicitly marked synthetic and their descriptions identify them
+as demo data. The seed command prints a randomly generated demo password once;
+save it for the video and do not use it as a real account credential.
+
+Start the separate demo server:
+
+```powershell
+npm run demo:start
+```
+
+Keep its terminal open and use
+[http://localhost:3001/investigator.html](http://localhost:3001/investigator.html).
+Sign in with `judge-demo@example.test` and the password printed by the seed
+command. The existing app on port 3000 continues to use the database selected
+by `MONGODB_URI`; the demo server selects `resqnet_demo`. The demo database
+persists after the server stops, and the seed command will not overwrite it.
+
+In the workspace, try **Reporting completeness**, then open **Evidence
+preview**, select `DEMO-CLINIC-01`, and preview the evidence. The sample has
+enough historical periods to show a baseline and a deliberately lower current
+report count. Create an investigation to try the review notes, decisions, and
+status transitions. The dataset is fictional; any displayed reporting gap or
+anomaly is only a demonstration of reporting behavior, not a real health
+signal. AI interpretation remains optional and requires separate Nebius
+configuration.
+
 ## Judge trial: public site (about 3 minutes)
 
 1. On the home page, follow **Report Symptoms**. Select at least one symptom,

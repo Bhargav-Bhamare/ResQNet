@@ -1288,6 +1288,7 @@ loginForm.addEventListener("submit", async (event) => {
           String(values.get("email") || "").trim(),
           String(values.get("password") || ""),
         );
+        loginForm.reset();
         state.view = "overview";
         history.replaceState(null, "", "#overview");
         showWorkspace();

@@ -37,8 +37,9 @@ async function connectToDatabase() {
   }
 
   if (!connectionPromise) {
+    const databaseName = process.env.MONGODB_DATABASE;
     connectionPromise = mongoose
-      .connect(uri)
+      .connect(uri, databaseName ? { dbName: databaseName } : undefined)
       .then(() => {
         console.log("Connected to MongoDB.");
         return mongoose.connection;
