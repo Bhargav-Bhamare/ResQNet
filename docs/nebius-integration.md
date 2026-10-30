@@ -88,9 +88,11 @@ const result = await nebius.generateChatCompletion({
 `generateChatCompletion` accepts required non-empty `systemPrompt` and
 `userPrompt` strings; optional `model`, `temperature` (0–2), `maxTokens`
 (1–2048), `responseFormat` (`{ type: "json_object" }`),
-and `signal`. The combined prompts are limited to 20000 characters. Generation
-defaults to temperature 0 and at most 512 output tokens. Streaming and tool
-calls are intentionally not exposed.
+`reasoningEffort` (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or
+`max`), and `signal`. `reasoningEffort` is sent as the verified OpenAI-
+compatible `reasoning_effort` parameter when supplied. The combined prompts
+are limited to 20000 characters. Generation defaults to temperature 0 and at
+most 512 output tokens. Streaming and tool calls are intentionally not exposed.
 
 Success is normalized to:
 

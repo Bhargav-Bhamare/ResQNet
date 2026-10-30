@@ -267,6 +267,7 @@ function validateCompletionInput({
   temperature,
   maxTokens,
   responseFormat,
+  reasoningEffort,
 }) {
   if (
     typeof systemPrompt !== "string" ||
@@ -303,6 +304,14 @@ function validateCompletionInput({
   ) {
     throw new NebiusProviderError("INVALID_REQUEST");
   }
+  if (
+    reasoningEffort !== undefined &&
+    !["none", "minimal", "low", "medium", "high", "xhigh", "max"].includes(
+      reasoningEffort,
+    )
+  ) {
+    throw new NebiusProviderError("INVALID_REQUEST");
+  }
 }
 
 function createNebiusClient({
@@ -323,6 +332,7 @@ function createNebiusClient({
     temperature = 0,
     maxTokens = DEFAULT_MAX_TOKENS,
     responseFormat,
+    reasoningEffort,
     signal,
   }) {
     validateCompletionInput({
@@ -332,6 +342,7 @@ function createNebiusClient({
       temperature,
       maxTokens,
       responseFormat,
+      reasoningEffort,
     });
 
     const body = {
@@ -345,6 +356,9 @@ function createNebiusClient({
       stream: false,
     };
     if (responseFormat) body.response_format = responseFormat;
+    if (reasoningEffort !== undefined) {
+      body.reasoning_effort = reasoningEffort;
+    }
 
     let retries = 0;
     const callStartedAt = performance.now();

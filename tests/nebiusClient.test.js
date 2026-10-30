@@ -122,6 +122,32 @@ test("client supports a per-request model and JSON response format", async () =>
   assert.deepEqual(body.response_format, { type: "json_object" });
 });
 
+test("client accepts only documented reasoning-effort options", async () => {
+  let body;
+  const client = createClient({
+    fetchImpl: async (_url, init) => {
+      body = JSON.parse(init.body);
+      return successfulResponse();
+    },
+  });
+
+  await client.generateChatCompletion({
+    systemPrompt: "system",
+    userPrompt: "question",
+    reasoningEffort: "none",
+  });
+  assert.equal(body.reasoning_effort, "none");
+
+  await assert.rejects(
+    client.generateChatCompletion({
+      systemPrompt: "system",
+      userPrompt: "question",
+      reasoningEffort: "disabled",
+    }),
+    (error) => error.code === "INVALID_REQUEST",
+  );
+});
+
 test("client normalizes response content and metadata", async () => {
   const client = createClient({ fetchImpl: async () => successfulResponse() });
   const result = await client.generateChatCompletion({
