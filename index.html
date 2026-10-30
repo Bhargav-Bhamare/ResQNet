@@ -30,6 +30,7 @@
                 <a href="#report-symptoms" class="nav-link">Report Symptoms</a>
                 <a href="#live-map" class="nav-link">Live Map</a>
                 <a href="#disaster-reporting" class="nav-link">Report Disaster</a>
+                <a href="#null-signal" class="nav-link">NULL SIGNAL</a>
                 <button class="emergency-btn" onclick="showPage('emergency-sos')">
                     Emergency SOS
                 </button>
@@ -449,6 +450,102 @@
             </div>
         </section>
     </div>
+
+    <!-- NULL SIGNAL Investigation Dashboard -->
+    <section id="null-signal" class="page">
+        <div class="container">
+            <div class="section-header">
+                <h1>NULL SIGNAL</h1>
+                <p>
+                    Detect missing reports, investigate evidence gaps,
+                    and monitor reporting-channel health.
+                </p>
+            </div>
+
+            <!-- Investigation evaluation form -->
+            <div class="card">
+                <h2>Evaluate Reporting Evidence</h2>
+                <p>
+                    Compare expected reports with reports received by ResQNet.
+                </p>
+
+                <form id="null-signal-form">
+                    <div class="form-group">
+                        <label for="ns-area">Area</label>
+                        <input
+                            type="text"
+                            id="ns-area"
+                            name="area"
+                            placeholder="e.g. Jammu West"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ns-expected">Expected reports</label>
+                        <input
+                            type="number"
+                            id="ns-expected"
+                            name="expectedReports"
+                            min="0"
+                            step="1"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ns-window">Time window (hours)</label>
+                        <input
+                            type="number"
+                            id="ns-window"
+                            name="windowHours"
+                            min="0.01"
+                            max="720"
+                            step="any"
+                            value="24"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ns-channel">Reporting channel status</label>
+                        <select id="ns-channel" name="channelStatus" required>
+                            <option value="unknown">Unknown</option>
+                            <option value="healthy">Healthy</option>
+                            <option value="degraded">Degraded</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-emergency full-width">
+                        Evaluate Evidence
+                    </button>
+                </form>
+
+                <p id="ns-form-message" role="status" aria-live="polite"></p>
+            </div>
+
+            <!-- Latest investigation result -->
+            <div class="card">
+                <h2>Latest Investigation</h2>
+                <div id="ns-latest-result" aria-live="polite">
+                    <p>Run an evaluation to view its results here.</p>
+                </div>
+            </div>
+
+            <!-- Saved investigation history -->
+            <div class="card">
+                <h2>Investigation History</h2>
+                <button type="button" id="ns-refresh-history">
+                    Refresh History
+                </button>
+                <div id="ns-history-message" role="status" aria-live="polite"></div>
+                <div id="ns-investigation-history">
+                    <p>Investigation history has not been loaded yet.</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <!-- Footer -->
     <footer class="footer">

@@ -4,11 +4,14 @@ const express = require("express");
 const mongoose = require("mongoose");
 const connectToDatabase = require("./config/db");
 const Report = require("./models/Report");
+const Investigation = require("./models/Investigation");
+const evaluateEvidence = require("./services/evidenceDetector");
 const reportingCompletenessRouter = require("./routes/reportingCompleteness");
 
 const app = express();
 const port = process.env.PORT || 3000;
 
+app.use(express.static(__dirname));
 app.use(express.json());
 
 app.get("/api/health", (req, res) => {
@@ -20,21 +23,29 @@ app.get("/api/health", (req, res) => {
 
 app.get("/api/db-health", (req, res) => {
   const connected = mongoose.connection.readyState === 1;
+
   res.status(connected ? 200 : 503).json({
     status: connected ? "connected" : "disconnected",
   });
 });
 
-app.use("/api/reporting-completeness", reportingCompletenessRouter());
+// Bhargav's reporting completeness API.
+app.use(
+  "/api/reporting-completeness",
+  reportingCompletenessRouter(),
+);
 
+// Allowed fields for public report submissions.
 const reportFields = new Set([
   "reportType",
+  "disasterType",
   "description",
   "symptoms",
   "severity",
   "location",
   "reportedAt",
 ]);
+
 const locationFields = new Set([
   "region",
   "district",
@@ -57,8 +68,10 @@ function validateSubmissionShape(body) {
       return "verificationStatus is assigned by the server.";
     }
 
-    if (field === "sourceId" || field === "sourceChannel") {
-      return "Public submissions cannot assign reporting-source attribution.";
+    if (
+      ["sourceId", "sourceChannel", "isSynthetic", "source"].includes(field)
+    ) {
+      return "Reporting-source attribution and synthetic status are assigned by the server.";
     }
 
     if (
@@ -76,10 +89,9 @@ function validateSubmissionShape(body) {
 
   for (const field of [
     "reportType",
+    "disasterType",
     "description",
     "severity",
-    "sourceChannel",
-    "sourceId",
   ]) {
     if (field in body && typeof body[field] !== "string") {
       return `${field} must be a string.`;
@@ -114,13 +126,17 @@ function validateSubmissionShape(body) {
         return `Unsupported location field: ${field}.`;
       }
 
-      if (field !== "coordinates" && typeof body.location[field] !== "string") {
+      if (
+        field !== "coordinates" &&
+        typeof body.location[field] !== "string"
+      ) {
         return `location.${field} must be a string.`;
       }
     }
 
     if ("coordinates" in body.location) {
       const { coordinates } = body.location;
+
       if (!isPlainObject(coordinates)) {
         return "location.coordinates must be a GeoJSON Point object.";
       }
@@ -134,11 +150,12 @@ function validateSubmissionShape(body) {
       if (
         coordinates.type !== "Point" ||
         !Array.isArray(coordinates.coordinates) ||
+        coordinates.coordinates.length !== 2 ||
         coordinates.coordinates.some(
           (coordinate) => typeof coordinate !== "number",
         )
       ) {
-        return "location.coordinates must contain a Point and numeric coordinates.";
+        return "location.coordinates must contain a Point and two numeric coordinates.";
       }
     }
   }
@@ -158,8 +175,10 @@ function isDatabaseUnavailable(error) {
   );
 }
 
+// Public report submission.
 app.post("/api/reports", async (req, res) => {
   const shapeError = validateSubmissionShape(req.body);
+
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -176,11 +195,13 @@ app.post("/api/reports", async (req, res) => {
       const fields = error.errors
         ? Object.keys(error.errors)
         : [error.path].filter(Boolean);
+
       return res.status(400).json({
         error: "Report validation failed.",
         fields,
       });
     }
+
     throw error;
   }
 
@@ -190,6 +211,7 @@ app.post("/api/reports", async (req, res) => {
 
   try {
     const savedReport = await report.save();
+
     return res.status(201).json({
       report: savedReport.toObject({ versionKey: false }),
     });
@@ -201,6 +223,7 @@ app.post("/api/reports", async (req, res) => {
       const fields = error.errors
         ? Object.keys(error.errors)
         : [error.path].filter(Boolean);
+
       return res.status(400).json({
         error: "Report validation failed.",
         fields,
@@ -214,14 +237,202 @@ app.post("/api/reports", async (req, res) => {
     console.error(
       `Unable to save report (${error?.name || "UnknownError"}).`,
     );
+
     return res.status(500).json({ error: "Unable to save report." });
   }
 });
 
+// Retrieve recent reports.
+app.get("/api/reports", async (req, res) => {
+  try {
+    const reports = await Report.find()
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    return res.status(200).json({
+      count: reports.length,
+      reports,
+    });
+  } catch (error) {
+    console.error("Report retrieval failed:", error.message);
+
+    return res.status(500).json({
+      error: "Unable to retrieve reports.",
+    });
+  }
+});
+
+// Evaluate evidence using reports stored in MongoDB.
+app.post("/api/evidence/evaluate-from-reports", async (req, res) => {
+  try {
+    const {
+      area,
+      expectedReports,
+      windowHours,
+      channelStatus,
+    } = req.body;
+
+    const validStatuses = ["healthy", "degraded", "failed", "unknown"];
+
+    if (
+      typeof area !== "string" ||
+      !area.trim() ||
+      !Number.isInteger(expectedReports) ||
+      expectedReports < 0 ||
+      typeof windowHours !== "number" ||
+      !Number.isFinite(windowHours) ||
+      windowHours <= 0 ||
+      windowHours > 720 ||
+      !validStatuses.includes(channelStatus)
+    ) {
+      return res.status(400).json({
+        error:
+          "Provide area, a non-negative integer expectedReports, windowHours between 0 and 720, and a valid channelStatus.",
+      });
+    }
+
+    const now = new Date();
+    const windowStart = new Date(
+      now.getTime() - windowHours * 60 * 60 * 1000,
+    );
+
+    const escapedArea = area.trim().replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&",
+    );
+
+    // Match structured locations and exclude synthetic test reports.
+    // Older records without submittedAt use createdAt as a fallback.
+    const receivedReports = await Report.countDocuments({
+      "location.region": {
+        $regex: `^${escapedArea}$`,
+        $options: "i",
+      },
+      $or: [
+        {
+          submittedAt: {
+            $gte: windowStart,
+            $lte: now,
+          },
+        },
+        {
+          submittedAt: { $exists: false },
+          createdAt: {
+            $gte: windowStart,
+            $lte: now,
+          },
+        },
+      ],
+      isSynthetic: { $ne: true },
+    });
+
+    const result = evaluateEvidence({
+      area: area.trim(),
+      expectedReports,
+      receivedReports,
+      channelStatus,
+    });
+
+    const investigation = await Investigation.create(result);
+
+    return res.status(201).json({
+      message: "Database-backed evidence evaluation completed.",
+      window: {
+        hours: windowHours,
+        from: windowStart,
+        to: now,
+      },
+      investigation,
+    });
+  } catch (error) {
+    console.error(
+      "Database-backed evidence evaluation failed:",
+      error.message,
+    );
+
+    return res.status(500).json({
+      error: "Unable to evaluate stored reports.",
+    });
+  }
+});
+
+// Evaluate manually supplied evidence counts.
+app.post("/api/evidence/evaluate", async (req, res) => {
+  try {
+    const {
+      area,
+      expectedReports,
+      receivedReports,
+      channelStatus,
+    } = req.body;
+
+    if (
+      typeof area !== "string" ||
+      !area.trim() ||
+      !Number.isInteger(expectedReports) ||
+      !Number.isInteger(receivedReports) ||
+      expectedReports < 0 ||
+      receivedReports < 0 ||
+      !["healthy", "degraded", "failed", "unknown"].includes(
+        channelStatus,
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "Provide area, non-negative integer report counts, and a valid channelStatus.",
+      });
+    }
+
+    const result = evaluateEvidence({
+      area: area.trim(),
+      expectedReports,
+      receivedReports,
+      channelStatus,
+    });
+
+    const saved = await Investigation.create(result);
+
+    return res.status(201).json({
+      message: "Evidence evaluation completed and saved.",
+      investigation: saved,
+    });
+  } catch (error) {
+    console.error("Evidence evaluation failed:", error.message);
+
+    return res.status(500).json({
+      error: "Unable to evaluate and save evidence.",
+    });
+  }
+});
+
+// Retrieve recent investigations.
+app.get("/api/evidence/investigations", async (req, res) => {
+  try {
+    const investigations = await Investigation.find()
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+
+    return res.status(200).json({
+      count: investigations.length,
+      investigations,
+    });
+  } catch (error) {
+    console.error("Investigation retrieval failed:", error.message);
+
+    return res.status(500).json({
+      error: "Unable to retrieve investigations.",
+    });
+  }
+});
+
+// API 404 handler.
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "API route not found" });
 });
 
+// Global error handler.
 app.use((error, req, res, next) => {
   if (error?.type === "entity.parse.failed" || error instanceof SyntaxError) {
     return res.status(400).json({ error: "Malformed JSON request body." });
@@ -232,16 +443,22 @@ app.use((error, req, res, next) => {
   }
 
   console.error("Unexpected request error.");
-  return res.status(500).json({ error: "Internal server error." });
+
+  return res.status(500).json({
+    error: "Internal server error.",
+  });
 });
 
 async function startServer() {
   await connectToDatabase();
+
   app.listen(port, () => {
     console.log(`NULL SIGNAL backend listening on port ${port}`);
   });
 }
 
+// Only start the server when this file is run directly.
+// This allows automated tests to import the Express app.
 if (require.main === module) {
   startServer().catch((error) => {
     console.error(`Unable to start NULL SIGNAL backend: ${error.message}`);

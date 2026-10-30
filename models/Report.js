@@ -47,6 +47,11 @@ const reportSchema = new mongoose.Schema(
       enum: ["symptom", "disaster"],
       required: true,
     },
+    disasterType: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
     description: {
       type: String,
       trim: true,
@@ -94,6 +99,10 @@ const reportSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: 128,
+    },
+    isSynthetic: {
+      type: Boolean,
+      default: false,
     },
     reportedAt: Date,
     submittedAt: {
