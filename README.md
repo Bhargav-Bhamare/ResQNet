@@ -1,15 +1,229 @@
 # ResQNet
-ResQNet — Public Health Outbreak &amp; Crisis Response Network is a community-driven platform designed to detect health threats early and improve coordination between citizens, healthcare teams, and government authorities.
+
+ResQNet (with its investigator workspace branded **NULL SIGNAL**) is a
+community health and disaster reporting prototype. It accepts public
+observations and gives authorized investigators tools to review
+source-attributed reporting continuity, preserve evidence, and record
+human-led follow-up. It is not a medical service, emergency dispatch system,
+or certified outbreak-detection product.
+
+## Project overview
+
+### Problem statement
+
+During a public-health or local emergency, community observations and
+institutional reports can be fragmented across channels. A sudden change in
+the number of reports may be important, but it can also reflect a broken
+channel, delayed reporting, incomplete coverage, a schedule change, or missing
+data. Treating missing reports as proof that an event has ended—or as proof of
+an outbreak—can mislead people making decisions.
+
+ResQNet explores a safer workflow: collect observations, distinguish trusted
+source-attributed reports from general public submissions, calculate
+reporting-period completeness and historical context, preserve the resulting
+evidence, and support a human reviewer in documenting what should be checked
+next. The system is designed to describe the reporting signal, not to infer
+clinical reality from it.
+
+### Goals and intended users
+
+- **Community members** can submit symptom or disaster observations through
+  public forms.
+- **Administrators** can manage investigator accounts and source access.
+- **Investigators** can inspect the reporting sources they are authorized to
+  review, preview evidence, create investigation records, add notes, record
+  assessments, and progress cases through a controlled review workflow.
+- **Viewers** can read authorized reporting and investigation records without
+  changing them.
+- **Optional AI assistance** can summarize sanitized evidence and suggest
+  verification questions. Its output is advisory and displayed only after
+  server-side schema and evidence-reference validation.
+
+The project is most useful today as a prototype, testbed, or starting point for
+partner-led evaluation. It does not currently have a live institutional
+reporting network or a live incident map.
+
+### Architecture
+
+```mermaid
+flowchart TD
+    Citizen[Community member] -->|Public symptom or disaster report| Web[Public web interface]
+    Investigator[Admin, investigator, or viewer] -->|Bearer-authenticated requests| Portal[Investigator workspace]
+    Web --> API[Express API]
+    Portal --> API
+    API --> Reports[(MongoDB: reports and source records)]
+    API --> Auth[Authentication, roles, and source-scope checks]
+    Auth --> Evidence[Trusted evidence pipeline]
+    Evidence --> Periods[Reporting-period aggregation]
+    Periods --> Completeness[Completeness calculations]
+    Periods --> Baseline[Historical baseline]
+    Baseline --> Anomaly[Deterministic anomaly analysis]
+    Completeness --> Package[Evidence package and limitations]
+    Anomaly --> Package
+    Package --> Investigations[(MongoDB: immutable snapshots and review history)]
+    Investigations --> Reviewer[Human review workflow]
+    Package --> Sanitizer[AI evidence sanitization]
+    Sanitizer --> Nebius[Nebius Token Factory: Nemotron inference]
+    Nebius --> Validator[Strict output and evidence-reference validation]
+    Validator --> Interpretations[(MongoDB: validated interpretations and audit metadata)]
+    Validator --> Portal
+```
+
+The public website is served as static files by the same Express application.
+Public report submission is separate from authenticated investigator
+workflows. Investigator access uses expiring bearer tokens, server-side role
+checks, and source-scoped authorization. The deterministic pipeline builds
+evidence from trusted, attributed data; investigation records preserve a
+snapshot so a reviewer can later see what evidence was reviewed. Review
+decisions are appended separately rather than blended into calculated
+findings.
+
+AI interpretation is an optional branch after evidence generation. The server
+sanitizes and hashes the input, sends it to Nebius only on an explicit
+investigator request, validates the returned structure and references, and
+persists only validated output with operational audit metadata. Provider
+responses are not treated as authoritative evidence.
+
+### Technology stack
+
+| Area | Technologies |
+| --- | --- |
+| Public website | HTML, CSS, vanilla JavaScript |
+| Investigator interface | HTML, CSS, ES modules, browser Fetch API, session storage |
+| Backend | Node.js, Express |
+| Persistence | MongoDB with Mongoose models |
+| Authentication | Node.js cryptography (`scrypt` password hashing, random bearer tokens, SHA-256 token hashes) |
+| Mapping | Leaflet with OpenStreetMap/CARTO base tiles; current sample points are illustrative, not live reports |
+| AI integration | Nebius Token Factory API with a configured NVIDIA Nemotron model |
+| Configuration | Environment variables loaded from an ignored local `.env` file |
+| Automated tests | Node.js built-in test runner (`node --test`) |
+
+### Real-world usefulness and boundaries
+
+If deployed with verified partner organizations and reliable reporting
+integrations, ResQNet could help teams:
+
+1. Notice that an expected reporting channel has gone quiet or become
+   incomplete.
+2. Compare current reporting with bounded historical periods, while honoring
+   source schedules and local time zones.
+3. Keep source facts, calculated indicators, uncertainties, and human
+   assessments distinct.
+4. Preserve an investigation snapshot and an append-only application-level
+   review trail for handoffs and follow-up.
+5. Generate optional, constrained summaries and questions that may help a
+   reviewer plan verification work.
+
+These are potential uses, not claims that the current project detects
+outbreaks or reaches emergency responders. A reporting gap is evidence about
+the reporting process; by itself, it does not establish a change in cases,
+incidence, safety, or public-health activity. The public map contains no live
+incident data. The SOS screen is explicitly a demonstration and does not
+contact emergency services. Reports do not connect a user with a doctor or
+guarantee review or response.
+
+Before operational use, the project would need participating institutions,
+verified source onboarding, real source-data integrations, privacy and
+retention policies, clinical/public-health governance, accessibility and
+language review, a staffed response process, tested security controls, and
+reliable monitoring and incident management.
+
+### Characteristics
+
+- **Evidence-first and deterministic:** completeness, historical baselines,
+  and anomaly classifications are calculated by backend services before any
+  AI request.
+- **Explicit about uncertainty:** unavailable values remain unavailable;
+  insufficient history and unknown channel status are not silently converted
+  into reassuring conclusions.
+- **Source-scoped:** authenticated investigators and viewers see only
+  authorized source data; administrator access is separate.
+- **Human-in-the-loop:** notes, status transitions, and decisions are
+  investigator actions, not automatic conclusions.
+- **Auditable by application design:** evidence snapshots and review history
+  are immutable through normal application routes, with server-assigned
+  reviewer identity and timestamps. This is not tamper-proof storage against a
+  database administrator.
+- **Optional, bounded AI:** sanitized input, strict output validation,
+  constrained evidence references, and explicit generation help limit
+  unsupported claims; validation cannot guarantee that a model's validly
+  shaped interpretation is substantively correct.
+- **Separated user flows:** public reporting remains distinct from protected
+  investigation and evidence review.
+
+### Main challenges
+
+1. **Trust and provenance:** public submissions are not equivalent to
+   institutionally verified source reports. The system keeps a separate,
+   server-controlled attribution path and does not treat account roles as
+   proof of institutional identity.
+2. **Missingness versus zero:** a completed trusted query returning no reports
+   differs from an unavailable or incomplete query. Period aggregation must
+   preserve that distinction.
+3. **Time and reporting schedules:** daily or weekly windows depend on source
+   frequency, local time zone, and aligned period boundaries; incorrect
+   boundaries can distort completeness and historical comparisons.
+4. **Small or changing baselines:** sparse, seasonal, or changing data can
+   make anomaly comparisons unreliable. The pipeline represents insufficient
+   history and excludes incomplete periods rather than inventing a baseline.
+5. **AI reliability and cost:** provider output can be malformed,
+   unsupported, or inconsistent with the evidence; inference also requires
+   external network access, configured credentials, and may consume credits.
+   Strict validation can reject output but cannot make the model infallible.
+6. **Security and operations:** account recovery, shared rate limiting,
+   deployment secrets, backups, audit retention, monitoring, HTTPS, and
+   institutional onboarding need production-grade operational controls.
+7. **Frontend/backend coverage:** the interface is limited to APIs the backend
+   actually exposes. For example, it does not invent investigator lists for
+   assignment or display fabricated live map incidents.
+8. **Safe communication:** health and emergency interfaces must avoid implying
+   clinical advice, dispatch, a guaranteed response, or certainty unsupported
+   by data.
+
+## Local development and tests
+
+Use Node.js and MongoDB. Configure a local `.env` using `.env.example`, then
+start the application with:
+
+```sh
+npm install
+npm start
+```
+
+Create the initial administrator only when the configured database has no
+investigator accounts. Set `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`,
+and a unique `BOOTSTRAP_ADMIN_PASSWORD` of at least 12 characters in a
+protected environment, then run `npm run bootstrap-admin`. Remove those
+bootstrap values afterward. Never commit `.env` or use production credentials
+for local testing. Detailed authentication and bootstrap constraints are
+described below.
+
+Run the automated suite with:
+
+```sh
+npm test
+```
+
+Live provider smoke tests (`npm run test:nebius:live` and
+`npm run test:ai:live`) make external requests and require configured
+credentials; they are not necessary for the unit test suite.
+
+## Project documentation
+
+The [investigator frontend guide](./docs/investigator-frontend.md) describes
+the connected API contracts, session behavior, and backend capability gaps.
+The sections below document data provenance, evidence generation,
+authentication, investigation history, and human review in more detail.
 
 ## Trusted reporting-source attribution
 
-The backend has no user authentication or administrator authorization system.
-Source credential provisioning and authenticated source ingestion are therefore
-not exposed as HTTP endpoints. `services/sourceAttribution.js` provides an
-internal service boundary for provisioning, revoking, authenticating, auditing,
-and querying source-attributed reports. Its provisioning method is only
+Investigator authentication and administrator authorization are implemented,
+but source credential provisioning and authenticated source ingestion are not
+exposed as HTTP endpoints. `services/sourceAttribution.js` provides an internal
+service boundary for provisioning, revoking, authenticating, auditing, and
+querying source-attributed reports. Its provisioning method is only
 appropriate for a trusted server-side operator process; it must not be wired to
-a public route until an authenticated administrative onboarding process exists.
+a public route until a controlled source-onboarding process exists.
 
 Source credentials are generated from cryptographically secure random bytes.
 Only a SHA-256 hash of the high-entropy secret is stored, and the raw credential
