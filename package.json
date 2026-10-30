@@ -17,7 +17,9 @@
   "scripts": {
     "start": "node server.js",
     "bootstrap-admin": "node scripts/bootstrapAdmin.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:nebius": "node --test tests/nebiusConfig.test.js tests/nebiusClient.test.js",
+    "test:nebius:live": "node scripts/nebiusSmokeTest.js"
   },
   "dependencies": {
     "dotenv": "^18.0.9",
