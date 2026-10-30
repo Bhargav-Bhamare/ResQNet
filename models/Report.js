@@ -110,6 +110,7 @@ const reportSchema = new mongoose.Schema(
 );
 
 reportSchema.index({ reportType: 1, submittedAt: 1 });
+reportSchema.index({ sourceId: 1, sourceChannel: 1, submittedAt: 1 });
 
 module.exports =
   mongoose.models.Report || mongoose.model("Report", reportSchema);

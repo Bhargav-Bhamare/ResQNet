@@ -25,3 +25,31 @@ This mechanism does not establish a facility's legal identity or institutional
 authorization. Controlled facility onboarding, secure operator authentication,
 credential delivery, rotation procedures, and operational incident response
 remain prerequisites before it can be enabled for real sources.
+
+## Historical reporting-period aggregation
+
+`services/reportingPeriodAggregation.js` creates bounded daily or weekly
+observations using the source's configured frequency, timezone, expected count,
+validity window, and the same local-time boundary helpers as the current
+completeness calculation. Range arguments are half-open UTC timestamps that
+must align with local reporting-period boundaries. Daily ranges are capped at
+366 periods and weekly ranges at 104 periods.
+
+The aggregator calls the server-controlled `getTrustedReports` lookup with the
+requested period window. Empty periods are emitted as zero only after that
+lookup confirms a completed source-specific query and its window coverage.
+Reports are assigned by the server-generated `Report.submittedAt` timestamp;
+the accepted attribution audit timestamp is retained as provenance and must
+also be valid and no later than evaluation. Client-provided `reportedAt` is an
+event time and does not determine the reporting period. Reports are deduplicated
+by database ID, not by their content.
+
+Each observation contains the historical-baseline fields and current-period
+fields consumed by the existing anomaly/completeness calculations. Its
+`isTrusted` flag means only that aggregation ran over a configured source and a
+completed, audit-backed server query; it is not legal or institutional
+verification. Channel availability defaults to `unknown` and can only be
+overridden per period by an explicit trusted caller. In-progress periods remain
+in progress and are excluded by the baseline calculator. This service does not
+create an API endpoint, write database records, or analyze real historical data
+until trusted source reports actually exist.

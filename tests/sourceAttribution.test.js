@@ -84,7 +84,11 @@ function createHarness({
             item.reason === filter.reason &&
             item.sourceWasActive === filter.sourceWasActive &&
             item.sourceWasWithinValidity ===
-              filter.sourceWasWithinValidity,
+              filter.sourceWasWithinValidity &&
+            (!filter.reportId?.$in ||
+              filter.reportId.$in.some(
+                (id) => String(id) === String(item.reportId),
+              )),
         ),
       );
     },
@@ -125,10 +129,32 @@ function createHarness({
       const ids = new Set((filter._id?.$in || []).map(String));
       return Promise.resolve(
         reports.filter(
-          (item) =>
-            ids.has(String(item._id)) &&
-            item.sourceId === filter.sourceId &&
-            item.sourceChannel === filter.sourceChannel,
+          (item) => {
+            if (filter.sourceId && item.sourceId !== filter.sourceId) {
+              return false;
+            }
+            if (
+              filter.sourceChannel &&
+              item.sourceChannel !== filter.sourceChannel
+            ) {
+              return false;
+            }
+            if (filter._id?.$in && !ids.has(String(item._id))) {
+              return false;
+            }
+            if (filter.submittedAt) {
+              const submittedAt = new Date(item.submittedAt);
+              if (
+                submittedAt < filter.submittedAt.$gte ||
+                submittedAt >= filter.submittedAt.$lt ||
+                (filter.submittedAt.$lte &&
+                  submittedAt > filter.submittedAt.$lte)
+              ) {
+                return false;
+              }
+            }
+            return true;
+          },
         ),
       );
     }
@@ -417,6 +443,65 @@ test("trusted report IDs remain compatible with the completeness calculator", as
   })[0];
 
   assert.equal(completeness.receivedReports, 1);
+});
+
+test("bounded trusted lookup confirms source, successful audit, and query coverage", async () => {
+  const trustedReport = {
+    _id: "range-trusted",
+    sourceId: "CLINIC-TRUSTED",
+    sourceChannel: "official_api",
+    submittedAt: "2026-10-30T02:00:00.000Z",
+  };
+  const untrustedReport = {
+    _id: "range-untrusted",
+    sourceId: "CLINIC-TRUSTED",
+    sourceChannel: "official_api",
+    submittedAt: "2026-10-30T03:00:00.000Z",
+  };
+  const harness = createHarness({
+    existingReports: [trustedReport, untrustedReport],
+    existingAttributions: [
+      {
+        reportId: trustedReport._id,
+        reportingSourceId: "source-document-id",
+        sourceCode: "CLINIC-TRUSTED",
+        method: "source_api_key",
+        outcome: "accepted",
+        reason: "source_credential_authenticated",
+        sourceWasActive: true,
+        sourceWasWithinValidity: true,
+        attributedAt: "2026-10-30T02:00:01.000Z",
+        credentialId: "credential-ref",
+      },
+      {
+        reportId: untrustedReport._id,
+        reportingSourceId: "source-document-id",
+        sourceCode: "CLINIC-TRUSTED",
+        method: "source_api_key",
+        outcome: "rejected",
+        reason: "invalid_credential",
+        sourceWasActive: true,
+        sourceWasWithinValidity: true,
+      },
+    ],
+  });
+  const result = await harness.service.getTrustedReports({
+    sourceCode: "CLINIC-TRUSTED",
+    periodStart: "2026-10-30T00:00:00.000Z",
+    periodEnd: "2026-10-31T00:00:00.000Z",
+    asOf: "2026-10-30T23:59:59.999Z",
+  });
+
+  assert.equal(result.queryCompleted, true);
+  assert.equal(result.sourceCode, "CLINIC-TRUSTED");
+  assert.deepEqual(result.reports.map((item) => item._id), ["range-trusted"]);
+  assert.deepEqual([...result.trustedReportIds], ["range-trusted"]);
+  assert.equal(result.trustedAttributions[0].attributedAt, "2026-10-30T02:00:01.000Z");
+  assert.deepEqual(result.queryWindow, {
+    start: new Date("2026-10-30T00:00:00.000Z"),
+    end: new Date("2026-10-31T00:00:00.000Z"),
+    asOf: new Date("2026-10-30T23:59:59.999Z"),
+  });
 });
 
 test("credential revocation prevents subsequent authentication", async () => {

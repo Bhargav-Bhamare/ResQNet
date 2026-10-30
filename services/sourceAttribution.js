@@ -306,6 +306,25 @@ function createSourceAttributionService({
   }
 
   return {
+    async getConfiguredSource({ sourceCode } = {}) {
+      if (typeof sourceCode !== "string" || !sourceCode.trim()) {
+        throw new TypeError("sourceCode is required.");
+      }
+      const source = await resolveQuery(
+        ReportingSourceModel.findOne({ sourceCode }),
+      );
+      if (!source) return null;
+      return {
+        _id: source._id,
+        sourceCode: source.sourceCode,
+        name: source.name,
+        isActive: source.isActive,
+        validFrom: source.validFrom,
+        validUntil: source.validUntil,
+        reportingSchedule: source.reportingSchedule,
+      };
+    },
+
     async provisionCredential({ sourceCode, expiresAt } = {}) {
       if (typeof sourceCode !== "string" || !sourceCode.trim()) {
         throw new TypeError("sourceCode is required.");
@@ -441,7 +460,12 @@ function createSourceAttributionService({
       };
     },
 
-    async getTrustedReports({ sourceCode } = {}) {
+    async getTrustedReports({
+      sourceCode,
+      periodStart,
+      periodEnd,
+      asOf,
+    } = {}) {
       if (typeof sourceCode !== "string" || !sourceCode.trim()) {
         throw new TypeError("sourceCode is required.");
       }
@@ -449,8 +473,91 @@ function createSourceAttributionService({
         ReportingSourceModel.findOne({ sourceCode }),
       );
       if (!source) {
-        return { reports: [], trustedReportIds: new Set() };
+        return {
+          reports: [],
+          trustedReportIds: new Set(),
+          trustedAttributions: [],
+          queryCompleted: false,
+        };
       }
+
+      const boundedQuery =
+        periodStart !== undefined ||
+        periodEnd !== undefined ||
+        asOf !== undefined;
+      let requestedWindow;
+      let candidates;
+      let candidateIds;
+      if (boundedQuery) {
+        if (periodStart === undefined || periodEnd === undefined) {
+          throw new TypeError(
+            "periodStart and periodEnd must be supplied together.",
+          );
+        }
+        const start = getDate(periodStart, "periodStart");
+        const end = getDate(periodEnd, "periodEnd");
+        if (end <= start) {
+          throw new TypeError("periodEnd must follow periodStart.");
+        }
+        const queryAsOf =
+          asOf === undefined ? null : getDate(asOf, "asOf");
+        requestedWindow = {
+          start,
+          end,
+          asOf: queryAsOf,
+        };
+        candidates = await resolveQuery(
+          ReportModel.find({
+            sourceId: sourceCode,
+            sourceChannel: "official_api",
+            submittedAt: {
+              $gte: start,
+              $lt: end,
+              ...(queryAsOf === null ? {} : { $lte: queryAsOf }),
+            },
+          }),
+        );
+        candidateIds = candidates
+          .map((report) => report?._id)
+          .filter(Boolean);
+      } else {
+        const existingAttributions = await resolveQuery(
+          AttributionModel.find({
+            reportingSourceId: source._id,
+            sourceCode,
+            method: ATTRIBUTION_METHOD,
+            outcome: "accepted",
+            reason: "source_credential_authenticated",
+            sourceWasActive: true,
+            sourceWasWithinValidity: true,
+          }),
+        );
+        candidateIds = existingAttributions
+          .map((attribution) => attribution.reportId)
+          .filter(Boolean);
+        candidates =
+          candidateIds.length === 0
+            ? []
+            : await resolveQuery(
+                ReportModel.find({
+                  _id: { $in: candidateIds },
+                  sourceId: sourceCode,
+                  sourceChannel: "official_api",
+                }),
+              );
+      }
+
+      if (candidateIds.length === 0) {
+        return {
+          reports: [],
+          trustedReportIds: new Set(),
+          trustedAttributions: [],
+          queryCompleted: true,
+          sourceCode: source.sourceCode,
+          ...(requestedWindow ? { queryWindow: requestedWindow } : {}),
+        };
+      }
+
       let attributionQuery = AttributionModel.find({
         reportingSourceId: source._id,
         sourceCode,
@@ -459,36 +566,44 @@ function createSourceAttributionService({
         reason: "source_credential_authenticated",
         sourceWasActive: true,
         sourceWasWithinValidity: true,
+        reportId: { $in: candidateIds },
       });
       if (typeof attributionQuery.select === "function") {
-        attributionQuery = attributionQuery.select("reportId");
+        attributionQuery = attributionQuery.select(
+          "reportId attributedAt credentialId",
+        );
       }
       const accepted = await resolveQuery(attributionQuery);
-      const reportIds = accepted
-        .map((attribution) => attribution.reportId)
-        .filter(Boolean);
-      if (reportIds.length === 0) {
-        return { reports: [], trustedReportIds: new Set() };
-      }
-
-      const reports = await resolveQuery(
-        ReportModel.find({
-          _id: { $in: reportIds },
-          sourceId: sourceCode,
-          sourceChannel: "official_api",
-        }),
+      const attributionByReportId = new Map(
+        accepted
+          .filter((attribution) => attribution.reportId)
+          .map((attribution) => [
+            String(attribution.reportId),
+            attribution,
+          ]),
       );
-      const reportById = new Map(
-        reports.map((report) => [String(report._id), report]),
-      );
-      const trustedReports = reportIds
-        .map((id) => reportById.get(String(id)))
+      const trustedReports = candidates
+        .filter((report) =>
+          attributionByReportId.has(String(report._id)),
+        )
         .filter(Boolean);
+      const trustedAttributions = trustedReports.map((report) => {
+        const attribution = attributionByReportId.get(String(report._id));
+        return {
+          reportId: String(report._id),
+          attributedAt: attribution.attributedAt,
+          credentialId: attribution.credentialId,
+        };
+      });
       return {
         reports: trustedReports,
         trustedReportIds: new Set(
           trustedReports.map((report) => String(report._id)),
         ),
+        trustedAttributions,
+        queryCompleted: true,
+        sourceCode: source.sourceCode,
+        ...(requestedWindow ? { queryWindow: requestedWindow } : {}),
       };
     },
   };

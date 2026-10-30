@@ -89,26 +89,34 @@ function addCalendarDays(date, days) {
 function getReportingPeriod(schedule, now) {
   const timezone = schedule.timezone;
   const localNow = getLocalParts(now, timezone);
-  const localDate = {
+  return getReportingPeriodForLocalDate(schedule, {
     year: localNow.year,
     month: localNow.month,
     day: localNow.day,
-  };
-  const reportingTime = schedule.reportingTime;
+  });
+}
+
+function getReportingPeriodForLocalDate(schedule, localDate) {
+  const { timezone, reportingTime } = schedule;
+  const localPeriodDate = { ...localDate };
   let startDate;
   let endDate;
   let deadlineDate;
 
   if (schedule.frequency === "daily") {
-    startDate = localDate;
-    endDate = addCalendarDays(localDate, 1);
-    deadlineDate = reportingTime ? localDate : endDate;
+    startDate = localPeriodDate;
+    endDate = addCalendarDays(localPeriodDate, 1);
+    deadlineDate = reportingTime ? localPeriodDate : endDate;
   } else {
     const weekday = new Date(
-      Date.UTC(localDate.year, localDate.month - 1, localDate.day),
+      Date.UTC(
+        localPeriodDate.year,
+        localPeriodDate.month - 1,
+        localPeriodDate.day,
+      ),
     ).getUTCDay();
     const daysSinceMonday = (weekday + 6) % 7;
-    startDate = addCalendarDays(localDate, -daysSinceMonday);
+    startDate = addCalendarDays(localPeriodDate, -daysSinceMonday);
     endDate = addCalendarDays(startDate, 7);
     deadlineDate = reportingTime
       ? addCalendarDays(startDate, 6)
@@ -331,3 +339,8 @@ function calculateReportingCompleteness({
 }
 
 module.exports = calculateReportingCompleteness;
+module.exports.getLocalParts = getLocalParts;
+module.exports.localDateTimeToUtc = localDateTimeToUtc;
+module.exports.addCalendarDays = addCalendarDays;
+module.exports.getReportingPeriod = getReportingPeriod;
+module.exports.getReportingPeriodForLocalDate = getReportingPeriodForLocalDate;
