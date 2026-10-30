@@ -288,12 +288,22 @@ function createReportingPeriodAggregationService({
 
       const queryStart = validPeriods[0].start;
       const queryEnd = validPeriods[validPeriods.length - 1].end;
-      const trustedResult = await trustedReportService.getTrustedReports({
-        sourceCode: source.sourceCode,
-        periodStart: queryStart,
-        periodEnd: queryEnd,
-        asOf: evaluationTime,
-      });
+      let trustedResult;
+      try {
+        trustedResult = await trustedReportService.getTrustedReports({
+          sourceCode: source.sourceCode,
+          periodStart: queryStart,
+          periodEnd: queryEnd,
+          asOf: evaluationTime,
+        });
+      } catch (error) {
+        const lookupError = new Error(
+          "Trusted source-report lookup failed.",
+          { cause: error },
+        );
+        lookupError.code = "TRUSTED_LOOKUP_FAILED";
+        throw lookupError;
+      }
       if (
         !trustedResult ||
         trustedResult.queryCompleted !== true ||
@@ -309,9 +319,11 @@ function createReportingPeriodAggregationService({
         toDate(trustedResult.queryWindow.asOf, "trusted query evaluation") <
           evaluationTime
       ) {
-        throw new TypeError(
+        const coverageError = new TypeError(
           "Trusted report lookup did not confirm a completed, validated source query.",
         );
+        coverageError.code = "INCOMPLETE_QUERY_COVERAGE";
+        throw coverageError;
       }
 
       const trustedIds = trustedResult.trustedReportIds;

@@ -127,6 +127,7 @@ function createEvidencePackage({
   anomaly,
   thresholds,
   limitations = [],
+  historicalObservations = [],
   trustedObservationReferences,
 }) {
   requireObject(source, "source");
@@ -149,10 +150,28 @@ function createEvidencePackage({
     throw new TypeError("source.name must be a string when supplied.");
   }
   if (
+    source.timezone !== undefined &&
+    typeof source.timezone !== "string"
+  ) {
+    throw new TypeError("source.timezone must be a string when supplied.");
+  }
+  if (
+    source.expectedReportsPerPeriod !== undefined &&
+    (!Number.isInteger(source.expectedReportsPerPeriod) ||
+      source.expectedReportsPerPeriod < 1)
+  ) {
+    throw new TypeError(
+      "source.expectedReportsPerPeriod must be a positive integer when supplied.",
+    );
+  }
+  if (
     !Array.isArray(limitations) ||
     limitations.some((item) => typeof item !== "string")
   ) {
     throw new TypeError("limitations must be an array of strings.");
+  }
+  if (!Array.isArray(historicalObservations)) {
+    throw new TypeError("historicalObservations must be an array.");
   }
   if (
     !Array.isArray(anomaly.limitations) ||
@@ -310,6 +329,52 @@ function createEvidencePackage({
   const trustedReferences = filterTrustedReferences(
     trustedObservationReferences,
   );
+  const summarizedHistoricalObservations = historicalObservations.map(
+    (observation, index) => {
+      requireObject(observation, `historicalObservations[${index}]`);
+      if (
+        observation.isTrusted !== true ||
+        observation.sourceCode !== source.sourceCode ||
+        observation.frequency !== source.frequency
+      ) {
+        throw new TypeError(
+          `historicalObservations[${index}] is not a trusted matching observation.`,
+        );
+      }
+      requireCount(
+        observation.expectedReports,
+        `historicalObservations[${index}].expectedReports`,
+      );
+      requireCount(
+        observation.eligibleReceivedReports,
+        `historicalObservations[${index}].eligibleReceivedReports`,
+      );
+      if (observation.expectedReports < 1) {
+        throw new TypeError(
+          `historicalObservations[${index}].expectedReports must be positive.`,
+        );
+      }
+      return {
+        periodStart: isoDate(
+          observation.periodStart,
+          `historicalObservations[${index}].periodStart`,
+        ),
+        periodEnd: isoDate(
+          observation.periodEnd,
+          `historicalObservations[${index}].periodEnd`,
+        ),
+        frequency: observation.frequency,
+        expectedReports: observation.expectedReports,
+        eligibleReceivedReports: observation.eligibleReceivedReports,
+        status: observation.status,
+        channelAvailability:
+          observation.channelAvailability || "unknown",
+        isTrusted: true,
+        trustProvenance:
+          "server_controlled_source_attribution_query",
+      };
+    },
+  );
   const anomalyEvidence = {
     observedFacts: pickDefined(anomaly.evidence.observedFacts, [
       "sourceCode",
@@ -353,6 +418,10 @@ function createEvidencePackage({
       sourceCode: source.sourceCode,
       ...(source.name === undefined ? {} : { sourceName: source.name }),
       frequency: source.frequency,
+      ...(source.timezone === undefined ? {} : { timezone: source.timezone }),
+      ...(source.expectedReportsPerPeriod === undefined
+        ? {}
+        : { expectedReportsPerPeriod: source.expectedReportsPerPeriod }),
       period: {
         start: periodStart,
         end: periodEnd,
@@ -404,6 +473,7 @@ function createEvidencePackage({
     evidence: {
       ...(thresholds === undefined ? {} : { thresholds }),
       anomaly: anomalyEvidence,
+      historicalObservations: summarizedHistoricalObservations,
       trustedObservationReferences: trustedReferences,
     },
     limitationsAndUnknowns: {

@@ -53,3 +53,23 @@ overridden per period by an explicit trusted caller. In-progress periods remain
 in progress and are excluded by the baseline calculator. This service does not
 create an API endpoint, write database records, or analyze real historical data
 until trusted source reports actually exist.
+
+## End-to-end evidence pipeline
+
+`services/evidencePipeline.js` exposes `generateEvidenceForSource` for a
+configured source code, a local-period-aligned `historyStart`, an evaluation
+timestamp, and optional trusted per-period channel-availability data. It
+resolves the source server-side and runs the trusted lookup, bounded period
+aggregation, current-period completeness calculation, eligible historical
+baseline, deterministic anomaly detection, and evidence-package builder in
+sequence. It does not create an endpoint or write reports.
+
+The current period is evaluated separately and never enters its own baseline.
+Only completed, trusted historical observations are passed to the baseline
+service; that service retains its minimum-history and unavailable-channel
+rules. Successful empty trusted queries remain zero-report observations, while
+failed or incompletely covered queries stop the pipeline with a stage-specific
+error. `EvidencePipelineError.code` identifies the failed stage, and the
+original cause is retained where available. Pipeline findings describe
+reporting patterns only; they do not establish symptom prevalence, causation,
+or real-world reporting behavior without validated trusted records.
