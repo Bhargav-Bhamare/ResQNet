@@ -1,18 +1,58 @@
 require("dotenv").config({ quiet: true });
 
+const { randomUUID } = require("node:crypto");
 const express = require("express");
 const mongoose = require("mongoose");
 const connectToDatabase = require("./config/db");
 const Report = require("./models/Report");
 const Investigation = require("./models/Investigation");
+const ReportingSource = require("./models/ReportingSource");
 const evaluateEvidence = require("./services/evidenceDetector");
 const reportingCompletenessRouter = require("./routes/reportingCompleteness");
+const {
+  createAuthenticationRouter,
+} = require("./routes/authentication");
+const {
+  createAdminInvestigatorsRouter,
+} = require("./routes/adminInvestigators");
+const {
+  createEvidenceInvestigationsRouter,
+} = require("./routes/evidenceInvestigations");
+const {
+  createInvestigatorAuthenticationService,
+} = require("./services/investigatorAuthentication");
+const {
+  createAuthenticationMiddleware,
+  requireRoles,
+} = require("./services/investigatorMiddleware");
+const {
+  createSourceAttributionService,
+} = require("./services/sourceAttribution");
 
 const app = express();
 const port = process.env.PORT || 3000;
+app.disable("x-powered-by");
+const investigatorAuthenticationService =
+  createInvestigatorAuthenticationService();
+const authenticateInvestigator = createAuthenticationMiddleware(
+  investigatorAuthenticationService,
+);
+const sourceAttributionService = createSourceAttributionService();
+
+app.use((req, res, next) => {
+  req.requestId = randomUUID();
+  if (req.path.startsWith("/api/")) {
+    res.set({
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
+    });
+  }
+  next();
+});
 
 app.use(express.static(__dirname));
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
 
 app.get("/api/health", (req, res) => {
   res.status(200).json({
@@ -29,10 +69,44 @@ app.get("/api/db-health", (req, res) => {
   });
 });
 
-// Bhargav's reporting completeness API.
+app.use(
+  "/api/auth",
+  createAuthenticationRouter({
+    authenticationService: investigatorAuthenticationService,
+    authenticate: authenticateInvestigator,
+  }),
+);
+app.use(
+  "/api/admin/investigators",
+  createAdminInvestigatorsRouter({
+    authenticationService: investigatorAuthenticationService,
+    authenticate: authenticateInvestigator,
+  }),
+);
+app.use(
+  "/api/investigations",
+  createEvidenceInvestigationsRouter({
+    authenticationService: investigatorAuthenticationService,
+    sourceAttributionService,
+    authenticate: authenticateInvestigator,
+  }),
+);
+
+// Reporting summaries are visible only for all sources to admins and for
+// assigned sources to investigators and viewers.
 app.use(
   "/api/reporting-completeness",
-  reportingCompletenessRouter(),
+  authenticateInvestigator,
+  reportingCompletenessRouter({
+    getVisibleSources: (req) => {
+      if (req.investigator.role === "admin") {
+        return ReportingSource.find({}).lean();
+      }
+      return ReportingSource.find({
+        sourceCode: { $in: req.investigator.sourceCodes },
+      }).lean();
+    },
+  }),
 );
 
 // Allowed fields for public report submissions.
@@ -243,27 +317,37 @@ app.post("/api/reports", async (req, res) => {
 });
 
 // Retrieve recent reports.
-app.get("/api/reports", async (req, res) => {
-  try {
-    const reports = await Report.find()
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
+app.get(
+  "/api/reports",
+  authenticateInvestigator,
+  requireRoles("admin"),
+  async (req, res) => {
+    try {
+      const reports = await Report.find()
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .lean();
 
-    return res.status(200).json({
-      count: reports.length,
-      reports,
-    });
-  } catch (error) {
-    console.error("Report retrieval failed:", error.message);
+      return res.status(200).json({
+        count: reports.length,
+        reports,
+      });
+    } catch (error) {
+      console.error("Report retrieval failed:", error.message);
 
-    return res.status(500).json({
-      error: "Unable to retrieve reports.",
-    });
-  }
-});
+      return res.status(500).json({
+        error: "Unable to retrieve reports.",
+      });
+    }
+  },
+);
 
 // Evaluate evidence using reports stored in MongoDB.
+app.use(
+  "/api/evidence",
+  authenticateInvestigator,
+  requireRoles("admin"),
+);
 app.post("/api/evidence/evaluate-from-reports", async (req, res) => {
   try {
     const {

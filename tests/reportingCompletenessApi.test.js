@@ -169,24 +169,17 @@ test("existing health routes and unknown API behavior remain intact", async () =
   }
 });
 
-test("mounts the read-only completeness route on the main application", async () => {
-  const originalFind = ReportingSource.find;
-  ReportingSource.find = () => ({ lean: async () => [] });
+test("main application protects the completeness route with authentication", async () => {
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/api/reporting-completeness`,
+    );
 
-  try {
-    await withServer(app, async (baseUrl) => {
-      const response = await fetch(
-        `${baseUrl}/api/reporting-completeness`,
-      );
-      const body = await response.json();
-
-      assert.equal(response.status, 200);
-      assert.equal(body.count, 0);
-      assert.deepEqual(body.sources, []);
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), {
+      error: "Authentication required.",
     });
-  } finally {
-    ReportingSource.find = originalFind;
-  }
+  });
 });
 
 test("public report submissions cannot self-assign trusted source metadata", async () => {

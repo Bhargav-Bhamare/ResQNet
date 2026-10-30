@@ -16,6 +16,7 @@
   "main": "script.js",
   "scripts": {
     "start": "node server.js",
+    "bootstrap-admin": "node scripts/bootstrapAdmin.js",
     "test": "node --test"
   },
   "dependencies": {

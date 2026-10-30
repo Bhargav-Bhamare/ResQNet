@@ -73,3 +73,49 @@ error. `EvidencePipelineError.code` identifies the failed stage, and the
 original cause is retained where available. Pipeline findings describe
 reporting patterns only; they do not establish symptom prevalence, causation,
 or real-world reporting behavior without validated trusted records.
+
+## Investigator authentication and evidence access
+
+Investigator accounts are separate from source-ingestion credentials. Passwords
+are stored as salted Node.js `scrypt` hashes; the API issues random opaque
+bearer tokens and stores only their SHA-256 hashes in revocable sessions. Tokens
+expire after eight hours. Login uses a per-process IP rate limit; requests use
+the `Authorization: Bearer <token>` header, not cookies, so this API does not
+use cookie sessions or require cookie-based CSRF tokens.
+
+For local setup, copy `.env.example` to the ignored `.env` file and configure
+the MongoDB URI and bootstrap values there. Never commit `.env`.
+Create the initial administrator only from a controlled machine after setting
+`BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`, and a unique
+`BOOTSTRAP_ADMIN_PASSWORD` of at least 12 characters in a protected local
+environment. Then run `npm run bootstrap-admin`. The command refuses to run
+after any investigator account exists and claims a unique database bootstrap
+record before creating the account, preventing concurrent/repeated bootstrap.
+If the process fails after claiming that record, stop and resolve it through a
+controlled database administration procedure; do not expose a reset endpoint.
+Do not commit these values or put them in shell history; remove the bootstrap
+variables after initialization.
+Administrators can create accounts and assign configured source codes. Admins
+can inspect any configured source; investigators and viewers can inspect only
+their assigned sources. Deactivation revokes sessions. No public registration
+or source-credential provisioning endpoint is provided.
+
+The read-only evidence endpoint is
+`GET /api/investigations/:sourceCode/evidence`, with optional `evaluatedAt`
+(UTC ISO timestamp, not in the future) and `periods` query parameters.
+Historical periods default to 30 daily or 12 weekly periods and are capped at
+365 daily or 103 weekly periods, leaving room for the current period within the
+aggregation service's bound. Evidence generation still uses the trusted
+attribution-backed pipeline. Investigation requests record the investigator,
+source code, timestamps, outcome, safe error code, and request identifier.
+Audit persistence is fail-closed: evidence is not returned if the audit write
+fails. The legacy all-source completeness route now requires authentication
+and limits results to the caller's authorized sources; raw report reads and
+legacy evidence routes are admin-only.
+
+This is not a production security certification. Login rate limits are
+in-memory and per-process, so deployment needs a shared rate limiter, correctly
+configured proxy/network boundaries, HTTPS, secret management, backups,
+account recovery, audit retention controls, and verified institutional
+identity/onboarding procedures. Never treat account role assignment as proof
+of a person's institutional identity or a report's source attribution.

@@ -20,6 +20,7 @@ function createReportingCompletenessRouter({
   ReportingSourceModel = ReportingSource,
   calculate = calculateReportingCompleteness,
   getTrustedReports,
+  getVisibleSources = () => ReportingSourceModel.find({}).lean(),
 } = {}) {
   const router = express.Router();
   const loadTrustedReports =
@@ -30,7 +31,7 @@ function createReportingCompletenessRouter({
     const evaluatedAt = new Date();
 
     try {
-      const sources = await ReportingSourceModel.find({}).lean();
+      const sources = await getVisibleSources(req);
       const sourceReports = await Promise.all(
         sources.map((source) =>
           loadTrustedReports({ sourceCode: String(source.sourceCode) }),
