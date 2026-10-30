@@ -1,15 +1,23 @@
 # ResQNet
 ResQNet — Public Health Outbreak &amp; Crisis Response Network is a community-driven platform designed to detect health threats early and improve coordination between citizens, healthcare teams, and government authorities.
 
+## Quick start
+
+For local setup and a judge-ready feature walkthrough, see the
+[ResQNet judge quick start](./docs/quick-start-judges.md). It covers the public
+reporting demo, protected investigator workflow, required source data, and
+optional Nebius/Nemotron setup.
+
 ## Trusted reporting-source attribution
 
-The backend has no user authentication or administrator authorization system.
-Source credential provisioning and authenticated source ingestion are therefore
-not exposed as HTTP endpoints. `services/sourceAttribution.js` provides an
-internal service boundary for provisioning, revoking, authenticating, auditing,
-and querying source-attributed reports. Its provisioning method is only
-appropriate for a trusted server-side operator process; it must not be wired to
-a public route until an authenticated administrative onboarding process exists.
+Public report submission is unauthenticated, while the investigator API has
+separate account authentication and role-based authorization. Source credential
+provisioning and authenticated source ingestion are not exposed as HTTP
+endpoints. `services/sourceAttribution.js` provides an internal service
+boundary for provisioning, revoking, authenticating, auditing, and querying
+source-attributed reports. Its provisioning method is only appropriate for a
+trusted server-side operator process; it must not be wired to a public route
+until an authenticated source-onboarding process exists.
 
 Source credentials are generated from cryptographically secure random bytes.
 Only a SHA-256 hash of the high-entropy secret is stored, and the raw credential
