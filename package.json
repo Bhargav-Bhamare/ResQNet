@@ -17,7 +17,11 @@
   "scripts": {
     "start": "node server.js",
     "bootstrap-admin": "node scripts/bootstrapAdmin.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:nebius": "node --test tests/nebiusConfig.test.js tests/nebiusClient.test.js",
+    "test:nebius:live": "node scripts/nebiusSmokeTest.js",
+    "test:ai": "node --test tests/evidenceSanitizer.test.js tests/interpretationValidator.test.js tests/nemotronInterpreter.test.js tests/aiInterpretationModels.test.js tests/aiInterpretationRoutes.test.js",
+    "test:ai:live": "node scripts/nemotronSmokeTest.js"
   },
   "dependencies": {
     "dotenv": "^18.0.9",
