@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const ReportingSource = require("../models/ReportingSource");
 const calculateReportingCompleteness = require("../services/reportingCompleteness");
+const { createSourceAttributionService } = require("../services/sourceAttribution");
 
 function isDatabaseUnavailable(error) {
   return (
@@ -18,18 +19,31 @@ function isDatabaseUnavailable(error) {
 function createReportingCompletenessRouter({
   ReportingSourceModel = ReportingSource,
   calculate = calculateReportingCompleteness,
+  getTrustedReports,
 } = {}) {
   const router = express.Router();
+  const loadTrustedReports =
+    getTrustedReports ||
+    createSourceAttributionService({ ReportingSourceModel }).getTrustedReports;
 
   router.get("/", async (req, res) => {
     const evaluatedAt = new Date();
 
     try {
       const sources = await ReportingSourceModel.find({}).lean();
+      const sourceReports = await Promise.all(
+        sources.map((source) =>
+          loadTrustedReports({ sourceCode: String(source.sourceCode) }),
+        ),
+      );
+      const reports = sourceReports.flatMap((result) => result.reports);
+      const trustedReportIds = new Set(
+        sourceReports.flatMap((result) => [...result.trustedReportIds]),
+      );
       const results = calculate({
         sources,
-        reports: [],
-        trustedReportIds: new Set(),
+        reports,
+        trustedReportIds,
         now: evaluatedAt,
       });
 
@@ -46,7 +60,8 @@ function createReportingCompletenessRouter({
           channelAvailability: result.channelAvailability,
         })),
         limitations: [
-          "No server-controlled source-verification mechanism is configured; public submissions are not counted as reports from configured sources.",
+          "Only reports with successful server-controlled source-attribution audit records are counted; ordinary public submissions are not attributed to configured sources.",
+          "Authenticated source ingestion and administrator-authorized credential provisioning are not exposed as HTTP endpoints.",
           "Channel availability is unknown unless separately established; a reporting gap is not proof of an outbreak, suppression, fraud, or misconduct.",
         ],
       });

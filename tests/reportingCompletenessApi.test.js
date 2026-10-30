@@ -39,7 +39,7 @@ function testSource(overrides = {}) {
   };
 }
 
-function createTestApp(findSources) {
+function createTestApp(findSources, options = {}) {
   const application = express();
   application.use(express.json());
   application.use(
@@ -50,6 +50,7 @@ function createTestApp(findSources) {
           return { lean: findSources };
         },
       },
+      ...options,
     }),
   );
   return application;
@@ -69,7 +70,12 @@ test("returns a clear empty result when no sources are configured", async () => 
 
 test("returns current-period source results and trust limitations", async () => {
   await withServer(
-    createTestApp(async () => [testSource()]),
+    createTestApp(async () => [testSource()], {
+      getTrustedReports: async () => ({
+        reports: [],
+        trustedReportIds: new Set(),
+      }),
+    }),
     async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/reporting-completeness`);
       const body = await response.json();
@@ -83,7 +89,42 @@ test("returns current-period source results and trust limitations", async () => 
       assert.equal(body.sources[0].completenessPercent, null);
       assert.ok(body.sources[0].period.start);
       assert.ok(body.sources[0].period.deadline);
-      assert.match(body.limitations[0], /not counted as reports from configured sources/);
+      assert.match(body.limitations[0], /public submissions are not attributed/);
+    },
+  );
+});
+
+test("passes only reports and IDs returned by the trusted-attribution query", async () => {
+  const trustedReport = {
+    _id: "attributed-report-id",
+    sourceId: "CLINIC-TEST",
+    submittedAt: new Date().toISOString(),
+  };
+  let receivedCalculatorInput;
+
+  await withServer(
+    createTestApp(async () => [testSource()], {
+      getTrustedReports: async ({ sourceCode }) => {
+        assert.equal(sourceCode, "CLINIC-TEST");
+        return {
+          reports: [trustedReport],
+          trustedReportIds: new Set(["attributed-report-id"]),
+        };
+      },
+      calculate(input) {
+        receivedCalculatorInput = input;
+        return [];
+      },
+    }),
+    async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/reporting-completeness`);
+
+      assert.equal(response.status, 200);
+      assert.deepEqual(receivedCalculatorInput.reports, [trustedReport]);
+      assert.deepEqual(
+        [...receivedCalculatorInput.trustedReportIds],
+        ["attributed-report-id"],
+      );
     },
   );
 });
