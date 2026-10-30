@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Protected NULL SIGNAL investigator workspace for evidence review and reporting continuity.">
+    <meta name="theme-color" content="#0b1020">
+    <title>Investigator workspace | NULL SIGNAL</title>
+    <link rel="stylesheet" href="investigator.css">
+  </head>
+  <body>
+    <main id="login-screen" class="login-layout">
+      <section class="login-panel" aria-labelledby="login-title">
+        <a class="wordmark" href="/" aria-label="ResQNet public site">NULL SIGNAL<span> / ResQNet</span></a>
+        <p class="eyebrow">Protected workspace</p>
+        <h1 id="login-title">Investigator sign in</h1>
+        <p class="muted">Review deterministic reporting evidence and preserve the distinction between reporting gaps and real-world activity.</p>
+        <form id="login-form" class="form-stack">
+          <label for="login-email">Email</label>
+          <input id="login-email" name="email" type="email" autocomplete="username" maxlength="254" required>
+          <label for="login-password">Password</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="256" required>
+          <p id="login-error" class="notice notice-error" role="alert" hidden></p>
+          <button id="login-submit" class="button button-primary" type="submit">Sign in</button>
+        </form>
+        <a class="back-link" href="/">Return to public ResQNet</a>
+      </section>
+      <aside class="login-aside">
+        <span class="signal-mark" aria-hidden="true"></span>
+        <p class="eyebrow">Evidence before inference</p>
+        <h2>When the signal falls, examine the channel.</h2>
+        <p class="muted">Deterministic evidence remains authoritative. AI-assisted interpretation is optional, explicitly requested, and never a substitute for investigator review.</p>
+      </aside>
+    </main>
+
+    <div id="workspace" class="workspace" hidden>
+      <aside id="sidebar" class="sidebar">
+        <a class="wordmark" href="#overview">NULL SIGNAL<span> / ResQNet</span></a>
+        <p class="sidebar-caption">INVESTIGATOR CONSOLE</p>
+        <nav id="primary-navigation" class="primary-navigation" aria-label="Investigator navigation">
+          <button type="button" data-view="overview">Overview</button>
+          <button type="button" data-view="reporting">Reporting completeness</button>
+          <button type="button" data-view="investigations">Investigations</button>
+          <button type="button" data-view="preview">Evidence preview</button>
+        </nav>
+        <div class="sidebar-footer">
+          <span class="session-label">Signed in as</span>
+          <strong id="investigator-name"></strong>
+          <span id="investigator-role" class="role-badge"></span>
+          <button id="logout-button" class="button button-quiet" type="button">Sign out</button>
+          <a class="back-link" href="/">Public ResQNet</a>
+        </div>
+      </aside>
+      <div class="workspace-main">
+        <header class="topbar">
+          <button id="menu-toggle" class="button button-quiet menu-toggle" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+          <div>
+            <p class="eyebrow">NULL SIGNAL · EVIDENCE INTELLIGENCE</p>
+            <p id="topbar-caption" class="muted">Authenticated workspace</p>
+          </div>
+          <span class="secure-indicator">Authenticated session</span>
+        </header>
+        <main id="page-content" class="page-content" tabindex="-1"></main>
+      </div>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="frontend/app.mjs"></script>
+  </body>
+</html>

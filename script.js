@@ -2,6 +2,7 @@
 let currentPage = 'home';
 let sosTimer = null;
 let sosCountdown = 3;
+let illustrativeMap = null;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -35,7 +36,7 @@ function initializeApp() {
 
 // Navigation Functions
 function setupNavigation() {
-    const navLinks = document.querySelectorAll('.nav-link');
+    const navLinks = document.querySelectorAll('.nav-link[href^="#"]');
     navLinks.forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
@@ -58,6 +59,13 @@ function showPage(pageId) {
     if (targetPage) {
         targetPage.classList.add('active');
         currentPage = pageId;
+    }
+
+    if (pageId === 'live-map') {
+        requestAnimationFrame(() => {
+            if (currentPage !== 'live-map') return;
+            initializeIllustrativeMap();
+        });
     }
     
     // Update navigation
@@ -303,14 +311,9 @@ function cancelSOS() {
 function triggerEmergency() {
     const countdown = document.getElementById('countdown');
     countdown.classList.add('hidden');
-    
-    // Simulate emergency alert
-    showLoadingMessage('Sending emergency alert...');
-    
-    setTimeout(() => {
-        hideLoadingMessage();
-        showSuccessMessage('Emergency alert sent! Your location has been shared with emergency services. Help is on the way!');
-    }, 2000);
+    showErrorMessage(
+        'This demonstration does not send an SOS or notify emergency services. Call your local emergency number directly.'
+    );
 }
 
 // Map Functions
@@ -332,35 +335,37 @@ function triggerEmergency() {
 // }
 
 
-  // Initialize the map
-        var map = L.map('map').setView([19.0760, 72.8777], 7); // Maharashtra focus
+function initializeIllustrativeMap() {
+    const container = document.getElementById('map');
+    if (!container) return;
+    if (typeof L === 'undefined') {
+        container.textContent = 'The illustrative map is unavailable because its map library did not load.';
+        return;
+    }
+    if (illustrativeMap) {
+        illustrativeMap.invalidateSize();
+        return;
+    }
 
-
-    // Add OSM base tiles
+    illustrativeMap = L.map(container).setView([19.0760, 72.8777], 7);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 19
-}).addTo(map);
+        attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19
+    }).addTo(illustrativeMap);
 
-
-
-
-
-    // Example heatmap points
-    var heatData = [
-        [19.0760, 72.8777, 1], // Mumbai
-        [18.4575, 73.8500, 1], // Katraj, Pune
-        [19.9975, 73.7898, 1], // Nashik
-        [19.8762, 75.3433, 1]  // Aurangabad
+    const illustrativePoints = [
+        [19.0760, 72.8777, 1],
+        [18.4575, 73.8500, 1],
+        [19.9975, 73.7898, 1],
+        [19.8762, 75.3433, 1]
     ];
-
-    // Add heatmap
-    L.heatLayer(heatData, {
-      radius: 40,   // increase point radius
-      blur: 25,     // smoothness
-      maxZoom: 10
-    }).addTo(map);
+    L.heatLayer(illustrativePoints, {
+        radius: 40,
+        blur: 25,
+        maxZoom: 10
+    }).addTo(illustrativeMap);
+}
 
 
 // Utility Functions
@@ -513,31 +518,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-
-function initMap() {
-    const map = L.map('map').setView([20.5937, 78.9629], 5);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    L.marker([28.6139, 77.2090])
-        .addTo(map)
-        .bindPopup('Example: New Delhi')
-        .openPopup();
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    if (document.getElementById('map')) {
-        initMap();
-    }
-});
-
-
-
-
-
-
 
 async function submitNullSignalEvaluation(event) {
     event.preventDefault();

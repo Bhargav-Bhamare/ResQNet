@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ResQNet - Rapid Emergency Service & Quick-action Network</title>
-    <meta name="description" content="Real-time health and disaster reporting system connecting communities with emergency services for faster, life-saving responses.">
+    <title>ResQNet - Community Health & Disaster Reporting</title>
+    <meta name="description" content="Submit community health and disaster reports for platform review. Reports do not contact doctors or emergency services, and response times are not guaranteed.">
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -31,8 +31,9 @@
                 <a href="#live-map" class="nav-link">Live Map</a>
                 <a href="#disaster-reporting" class="nav-link">Report Disaster</a>
                 <a href="#null-signal" class="nav-link">NULL SIGNAL</a>
+                <a href="investigator.html" class="nav-link">Investigator portal</a>
                 <button class="emergency-btn" onclick="showPage('emergency-sos')">
-                    Emergency SOS
+                    SOS demo (no dispatch)
                 </button>
             </div>
             
@@ -50,8 +51,8 @@
                 <div class="hero-content">
                     <div class="hero-text">
                         <h1>ResQNet</h1>
-                        <h2>Rapid Emergency Service & Quick-action Network</h2>
-                        <p>Real-time health and disaster reporting system connecting communities with emergency services for faster, life-saving responses.</p>
+                        <h2>Community Health &amp; Disaster Reporting</h2>
+                        <p>Submit symptom or disaster reports for platform review. Submissions do not contact doctors or emergency services, and response times are not guaranteed.</p>
                         
                         <div class="cta-buttons">
                             <button class="btn btn-accent" onclick="showPage('report-symptoms')">
@@ -60,18 +61,18 @@
                             </button>
                             <button class="btn btn-hero" onclick="showPage('live-map')">
                                 <i class="fas fa-map-marker-alt"></i>
-                                View Live Map
+                                View Illustrative Map
                             </button>
                         </div>
                         
                         <button class="btn btn-emergency full-width" onclick="showPage('emergency-sos')">
                             <i class="fas fa-exclamation-triangle"></i>
-                            Emergency SOS
+                            SOS Demonstration (No Dispatch)
                         </button>
                     </div>
                     
                     <div class="hero-image">
-                        <img src="/ResQNet/Hero2.0.png" alt="Emergency Response Network">
+                        <img src="Hero2.0.png" alt="Community reporting platform preview">
                     </div>
                 </div>
             </div>
@@ -82,7 +83,7 @@
             <div class="container">
                 <div class="section-header">
                     <h2>How ResQNet Works</h2>
-                    <p>Three simple steps to get help when you need it most, connecting you with the right resources instantly.</p>
+                    <p>Submit observations to the platform and keep the limits of this demonstration in view.</p>
                 </div>
                 
                 <div class="features-grid">
@@ -98,16 +99,16 @@
                         <div class="feature-icon">
                             <i class="fas fa-map-marker-alt"></i>
                         </div>
-                        <h3>Real-time Mapping</h3>
-                        <p>View live heatmaps of health outbreaks and disaster zones to stay informed and safe.</p>
+                        <h3>Illustrative Mapping</h3>
+                        <p>Explore an illustrative map view. The current backend does not provide live map incidents or heatmap data.</p>
                     </div>
                     
                     <div class="feature-card">
                         <div class="feature-icon">
                             <i class="fas fa-phone"></i>
                         </div>
-                        <h3>Instant Connection</h3>
-                        <p>Connect immediately with healthcare professionals or emergency services when you need help most.</p>
+                        <h3>Platform Review</h3>
+                        <p>Reports can be submitted for review. This site does not connect reporters to clinicians or dispatch emergency services.</p>
                     </div>
                 </div>
             </div>
@@ -121,32 +122,32 @@
                         <div class="stat-icon">
                             <i class="fas fa-users"></i>
                         </div>
-                        <div class="stat-number">24/7</div>
-                        <div class="stat-label">Emergency Support</div>
+                        <div class="stat-number">Public</div>
+                        <div class="stat-label">Community reporting</div>
                     </div>
                     
                     <div class="stat-item">
                         <div class="stat-icon">
                             <i class="fas fa-clock"></i>
                         </div>
-                        <div class="stat-number">&lt;2min</div>
-                        <div class="stat-label">Response Time</div>
+                        <div class="stat-number">No SLA</div>
+                        <div class="stat-label">Response time not guaranteed</div>
                     </div>
                     
                     <div class="stat-item">
                         <div class="stat-icon">
                             <i class="fas fa-shield-alt"></i>
                         </div>
-                        <div class="stat-number">100%</div>
-                        <div class="stat-label">Secure & Private</div>
+                        <div class="stat-number">Review</div>
+                        <div class="stat-label">Reports require human review</div>
                     </div>
                     
                     <div class="stat-item">
                         <div class="stat-icon">
                             <i class="fas fa-chart-line"></i>
                         </div>
-                        <div class="stat-number">Real-time</div>
-                        <div class="stat-label">Live Updates</div>
+                        <div class="stat-number">Preview</div>
+                        <div class="stat-label">Map points are illustrative</div>
                     </div>
                 </div>
             </div>
@@ -160,7 +161,7 @@
                 <div class="form-container">
                     <div class="form-header">
                         <h1>Report Symptoms</h1>
-                        <p>Help us track health patterns in your area. Your report helps protect your community.</p>
+                        <p>Submit a symptom report for platform review. This is not medical advice or an emergency service.</p>
                     </div>
                     
                     <form class="symptom-form" onsubmit="submitSymptoms(event)">
@@ -212,13 +213,13 @@
                         </div>
                         
                         <div class="form-group">
-                            <label>Other</label>
-                            <textarea name="description" placeholder="Describe what you're suffering" rows="2"></textarea>
+                            <label for="symptom-description">Additional details (optional)</label>
+                            <textarea id="symptom-description" name="description" placeholder="Describe what you're experiencing" rows="2"></textarea>
                         </div>
 
                         <div class="form-group">
-                            <label>Severity Level:</label>
-                            <select name="severity" required>
+                            <label for="symptom-severity">Severity level:</label>
+                            <select id="symptom-severity" name="severity" required>
                                 <option value="">Select severity</option>
                                 <option value="mild">Mild</option>
                                 <option value="moderate">Moderate</option>
@@ -237,8 +238,8 @@
                         </div>
                         
                         <button type="submit" class="btn btn-accent full-width">
-                            <i class="fas fa-user-md"></i>
-                            Submit & Connect to Doctor
+                            <i class="fas fa-clipboard-list"></i>
+                            Submit Symptom Report
                         </button>
                     </form>
                 </div>
@@ -251,78 +252,15 @@
         <section class="map-section">
             <div class="container">
                 <div class="map-header">
-                    <h1>Live Emergency Map</h1>
-                    <div class="map-controls">
-                        <select id="map-filter" onchange="filterMap()">
-                            <option value="all">All Incidents</option>
-                            <option value="disease">Disease Outbreaks</option>
-                            <option value="disaster">Natural Disasters</option>
-                        </select>
-                    </div>
+                    <h1>Illustrative Map Preview</h1>
                 </div>
 
+                <p class="map-disclosure">The markers are fixed sample points, not live incidents or reports. The backend does not currently expose a map-data API.</p>
                 <div id="map" style="height: 500px; width: 100%;"></div>
 
-                <!-- <div class="map-container">
-                    <div id="map" class="map-placeholder">
-                        <div class="map-overlay">
-                            <h3>Interactive Map View</h3>
-                            <p>Real-time heatmap showing:</p>
-                            <div class="legend">
-                                <div class="legend-item">
-                                    <span class="legend-color disease"></span>
-                                    Disease Outbreaks
-                                </div>
-                                <div class="legend-item">
-                                    <span class="legend-color disaster"></span>
-                                    Natural Disasters
-                                </div>
-                                <div class="legend-item">
-                                    <span class="legend-color emergency"></span>
-                                    Emergency Zones
-                                </div>
-                            </div>
-                            
-                            <!-- Sample markers -->
-                            <!-- <div class="map-marker disease" style="top: 30%; left: 40%;">
-                                <i class="fas fa-virus"></i>
-                                <div class="marker-tooltip">Flu Outbreak - 23 cases</div>
-                            </div>
-                            <div class="map-marker disaster" style="top: 60%; left: 70%;">
-                                <i class="fas fa-fire"></i>
-                                <div class="marker-tooltip">Wildfire - Active</div>
-                            </div>
-                            <div class="map-marker emergency" style="top: 45%; left: 25%;">
-                                <i class="fas fa-ambulance"></i>
-                                <div class="marker-tooltip">Emergency Response</div>
-                            </div>
-                        </div>
-                    </div>
-                </div> --> 
-                
                 <div class="incidents-list">
-                    <h3>Recent Incidents</h3>
-                    <div class="incident-item">
-                        <div class="incident-icon disease">
-                            <i class="fas fa-virus"></i>
-                        </div>
-                        <div class="incident-info">
-                            <div class="incident-title">Flu Outbreak</div>
-                            <div class="incident-location">Sambhaji Nagar</div>
-                            <div class="incident-time">2 hours ago</div>
-                        </div>
-                    </div>
-                    
-                    <div class="incident-item">
-                        <div class="incident-icon disaster">
-                            <i class="fas fa-fire"></i>
-                        </div>
-                        <div class="incident-info">
-                            <div class="incident-title">Forest Fire</div>
-                            <div class="incident-location">Igatpuri,Nasik</div>
-                            <div class="incident-time">4 hours ago</div>
-                        </div>
-                    </div>
+                    <h3>Incident feed</h3>
+                    <p>No live incident feed is connected. Sample map points above are illustrative only.</p>
                 </div>
             </div>
         </section>
@@ -333,16 +271,16 @@
         <section class="emergency-section">
             <div class="container">
                 <div class="emergency-container">
-                    <h1>Emergency SOS</h1>
-                    <p>Press and hold the button below to send your location to emergency services</p>
+                    <h1>SOS demonstration (no dispatch)</h1>
+                    <p>This demonstration does not send an SOS or contact emergency services. Call your local emergency number directly if you need urgent help.</p>
                     
                     <div class="sos-container">
                         <button id="sos-button" class="sos-button" onmousedown="startSOS()" onmouseup="cancelSOS()" ontouchstart="startSOS()" ontouchend="cancelSOS()">
                             <div class="sos-icon">
                                 <i class="fas fa-exclamation"></i>
                             </div>
-                            <div class="sos-text">SOS</div>
-                            <div class="sos-subtext">EMERGENCY</div>
+                            <div class="sos-text">DEMO</div>
+                            <div class="sos-subtext">NO DISPATCH</div>
                         </button>
                         
                         <div id="countdown" class="countdown hidden">
@@ -356,15 +294,15 @@
                     <div class="emergency-info">
                         <div class="info-item">
                             <i class="fas fa-map-marker-alt"></i>
-                            <span>Location will be sent automatically</span>
+                            <span>No location is sent from this demo</span>
                         </div>
                         <div class="info-item">
                             <i class="fas fa-phone"></i>
-                            <span>Emergency contacts will be notified</span>
+                            <span>Emergency contacts are not notified</span>
                         </div>
                         <div class="info-item">
                             <i class="fas fa-ambulance"></i>
-                            <span>Nearest hospital will be contacted</span>
+                            <span>No hospital dispatch is integrated</span>
                         </div>
                     </div>
                 </div>
@@ -379,7 +317,7 @@
                 <div class="form-container">
                     <div class="form-header">
                         <h1>Report Disaster</h1>
-                        <p>Help emergency services respond faster by reporting disasters in your area.</p>
+                        <p>Submit a disaster observation for platform review. This does not notify emergency services or guarantee a response.</p>
                     </div>
                     
                     <form class="disaster-form" onsubmit="submitDisaster(event)">
@@ -451,98 +389,18 @@
         </section>
     </div>
 
-    <!-- NULL SIGNAL Investigation Dashboard -->
+    <!-- NULL SIGNAL protected investigator entry -->
     <section id="null-signal" class="page">
         <div class="container">
             <div class="section-header">
-                <h1>NULL SIGNAL</h1>
-                <p>
-                    Detect missing reports, investigate evidence gaps,
-                    and monitor reporting-channel health.
-                </p>
+                <h1>NULL SIGNAL Evidence Intelligence</h1>
+                <p>Authenticated investigators can review source-scoped reporting evidence, create immutable investigations, and record decisions.</p>
             </div>
-
-            <!-- Investigation evaluation form -->
             <div class="card">
-                <h2>Evaluate Reporting Evidence</h2>
-                <p>
-                    Compare expected reports with reports received by ResQNet.
-                </p>
-
-                <form id="null-signal-form">
-                    <div class="form-group">
-                        <label for="ns-area">Area</label>
-                        <input
-                            type="text"
-                            id="ns-area"
-                            name="area"
-                            placeholder="e.g. Jammu West"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label for="ns-expected">Expected reports</label>
-                        <input
-                            type="number"
-                            id="ns-expected"
-                            name="expectedReports"
-                            min="0"
-                            step="1"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label for="ns-window">Time window (hours)</label>
-                        <input
-                            type="number"
-                            id="ns-window"
-                            name="windowHours"
-                            min="0.01"
-                            max="720"
-                            step="any"
-                            value="24"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label for="ns-channel">Reporting channel status</label>
-                        <select id="ns-channel" name="channelStatus" required>
-                            <option value="unknown">Unknown</option>
-                            <option value="healthy">Healthy</option>
-                            <option value="degraded">Degraded</option>
-                            <option value="failed">Failed</option>
-                        </select>
-                    </div>
-
-                    <button type="submit" class="btn btn-emergency full-width">
-                        Evaluate Evidence
-                    </button>
-                </form>
-
-                <p id="ns-form-message" role="status" aria-live="polite"></p>
-            </div>
-
-            <!-- Latest investigation result -->
-            <div class="card">
-                <h2>Latest Investigation</h2>
-                <div id="ns-latest-result" aria-live="polite">
-                    <p>Run an evaluation to view its results here.</p>
-                </div>
-            </div>
-
-            <!-- Saved investigation history -->
-            <div class="card">
-                <h2>Investigation History</h2>
-                <button type="button" id="ns-refresh-history">
-                    Refresh History
-                </button>
-                <div id="ns-history-message" role="status" aria-live="polite"></div>
-                <div id="ns-investigation-history">
-                    <p>Investigation history has not been loaded yet.</p>
-                </div>
+                <h2>Open the protected workspace</h2>
+                <p>Evidence preview is read-only. Creating an investigation is an explicit action. AI interpretation is separately requested and only displayed after backend validation.</p>
+                <a class="btn btn-accent" href="/investigator.html">Investigator sign in</a>
+                <p class="help-text">A reporting gap does not prove that public-health activity declined or stopped.</p>
             </div>
         </div>
     </section>
@@ -557,8 +415,7 @@
                     </div> -->
                     <span class="brand-text">ResQNet</span>
                 </div>
-                <p>Rapid Emergency Service & Quick-action Network - Connecting communities in times of need. <br> ResQNet is a community
-                driven health and safety platform designed to connect<br> people with local doctors, track disease outbreaks and provide instant <br>emergency response tools. <br><br> &copy; 2025 ResQNet
+                <p>ResQNet is a community reporting platform for health and disaster observations. Reports are submitted for platform review; this service does not provide medical advice, connect reporters to doctors, or dispatch emergency services. <br><br> &copy; 2025 ResQNet
                 <br>Designed with Love by Team Trojans</p>
             </div>
         </div>
