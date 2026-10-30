@@ -1,18 +1,17 @@
-
 require("dotenv").config({ quiet: true });
 
 const express = require("express");
 const mongoose = require("mongoose");
 const connectToDatabase = require("./config/db");
-
+const Report = require("./models/Report");
 const Investigation = require("./models/Investigation");
 const evaluateEvidence = require("./services/evidenceDetector");
+const reportingCompletenessRouter = require("./routes/reportingCompleteness");
 
 const app = express();
-app.use(express.static(__dirname));
 const port = process.env.PORT || 3000;
-const Report = require("./models/Report");
 
+app.use(express.static(__dirname));
 app.use(express.json());
 
 app.get("/api/health", (req, res) => {
@@ -30,8 +29,241 @@ app.get("/api/db-health", (req, res) => {
   });
 });
 
+// Bhargav's reporting completeness API.
+app.use(
+  "/api/reporting-completeness",
+  reportingCompletenessRouter(),
+);
 
- // Evaluate evidence using reports stored in MongoDB.
+// Allowed fields for public report submissions.
+const reportFields = new Set([
+  "reportType",
+  "disasterType",
+  "description",
+  "symptoms",
+  "severity",
+  "location",
+  "reportedAt",
+]);
+
+const locationFields = new Set([
+  "region",
+  "district",
+  "state",
+  "country",
+  "coordinates",
+]);
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateSubmissionShape(body) {
+  if (!isPlainObject(body)) {
+    return "The request body must be a JSON object.";
+  }
+
+  for (const field of Object.keys(body)) {
+    if (field === "verificationStatus") {
+      return "verificationStatus is assigned by the server.";
+    }
+
+    if (
+      ["sourceId", "sourceChannel", "isSynthetic", "source"].includes(field)
+    ) {
+      return "Reporting-source attribution and synthetic status are assigned by the server.";
+    }
+
+    if (
+      ["_id", "id", "__v", "submittedAt", "createdAt", "updatedAt"].includes(
+        field,
+      )
+    ) {
+      return `${field} is assigned by the server.`;
+    }
+
+    if (!reportFields.has(field)) {
+      return `Unsupported field: ${field}.`;
+    }
+  }
+
+  for (const field of [
+    "reportType",
+    "disasterType",
+    "description",
+    "severity",
+  ]) {
+    if (field in body && typeof body[field] !== "string") {
+      return `${field} must be a string.`;
+    }
+  }
+
+  if ("symptoms" in body) {
+    if (
+      !Array.isArray(body.symptoms) ||
+      body.symptoms.some((symptom) => typeof symptom !== "string")
+    ) {
+      return "symptoms must be an array of strings.";
+    }
+  }
+
+  if ("reportedAt" in body) {
+    if (
+      typeof body.reportedAt !== "string" ||
+      Number.isNaN(Date.parse(body.reportedAt))
+    ) {
+      return "reportedAt must be a valid date string.";
+    }
+  }
+
+  if ("location" in body) {
+    if (!isPlainObject(body.location)) {
+      return "location must be a JSON object.";
+    }
+
+    for (const field of Object.keys(body.location)) {
+      if (!locationFields.has(field)) {
+        return `Unsupported location field: ${field}.`;
+      }
+
+      if (
+        field !== "coordinates" &&
+        typeof body.location[field] !== "string"
+      ) {
+        return `location.${field} must be a string.`;
+      }
+    }
+
+    if ("coordinates" in body.location) {
+      const { coordinates } = body.location;
+
+      if (!isPlainObject(coordinates)) {
+        return "location.coordinates must be a GeoJSON Point object.";
+      }
+
+      for (const field of Object.keys(coordinates)) {
+        if (!["type", "coordinates"].includes(field)) {
+          return `Unsupported location.coordinates field: ${field}.`;
+        }
+      }
+
+      if (
+        coordinates.type !== "Point" ||
+        !Array.isArray(coordinates.coordinates) ||
+        coordinates.coordinates.length !== 2 ||
+        coordinates.coordinates.some(
+          (coordinate) => typeof coordinate !== "number",
+        )
+      ) {
+        return "location.coordinates must contain a Point and two numeric coordinates.";
+      }
+    }
+  }
+
+  return null;
+}
+
+function isDatabaseUnavailable(error) {
+  return (
+    mongoose.connection.readyState !== 1 ||
+    [
+      "MongoNetworkError",
+      "MongoServerSelectionError",
+      "MongoNotConnectedError",
+    ].includes(error?.name) ||
+    /buffering timed out/i.test(error?.message || "")
+  );
+}
+
+// Public report submission.
+app.post("/api/reports", async (req, res) => {
+  const shapeError = validateSubmissionShape(req.body);
+
+  if (shapeError) {
+    return res.status(400).json({ error: shapeError });
+  }
+
+  const report = new Report(req.body);
+
+  try {
+    await report.validate();
+  } catch (error) {
+    if (
+      error instanceof mongoose.Error.ValidationError ||
+      error instanceof mongoose.Error.CastError
+    ) {
+      const fields = error.errors
+        ? Object.keys(error.errors)
+        : [error.path].filter(Boolean);
+
+      return res.status(400).json({
+        error: "Report validation failed.",
+        fields,
+      });
+    }
+
+    throw error;
+  }
+
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: "Database unavailable." });
+  }
+
+  try {
+    const savedReport = await report.save();
+
+    return res.status(201).json({
+      report: savedReport.toObject({ versionKey: false }),
+    });
+  } catch (error) {
+    if (
+      error instanceof mongoose.Error.ValidationError ||
+      error instanceof mongoose.Error.CastError
+    ) {
+      const fields = error.errors
+        ? Object.keys(error.errors)
+        : [error.path].filter(Boolean);
+
+      return res.status(400).json({
+        error: "Report validation failed.",
+        fields,
+      });
+    }
+
+    if (isDatabaseUnavailable(error)) {
+      return res.status(503).json({ error: "Database unavailable." });
+    }
+
+    console.error(
+      `Unable to save report (${error?.name || "UnknownError"}).`,
+    );
+
+    return res.status(500).json({ error: "Unable to save report." });
+  }
+});
+
+// Retrieve recent reports.
+app.get("/api/reports", async (req, res) => {
+  try {
+    const reports = await Report.find()
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    return res.status(200).json({
+      count: reports.length,
+      reports,
+    });
+  } catch (error) {
+    console.error("Report retrieval failed:", error.message);
+
+    return res.status(500).json({
+      error: "Unable to retrieve reports.",
+    });
+  }
+});
+
+// Evaluate evidence using reports stored in MongoDB.
 app.post("/api/evidence/evaluate-from-reports", async (req, res) => {
   try {
     const {
@@ -41,12 +273,7 @@ app.post("/api/evidence/evaluate-from-reports", async (req, res) => {
       channelStatus,
     } = req.body;
 
-    const validStatuses = [
-      "healthy",
-      "degraded",
-      "failed",
-      "unknown",
-    ];
+    const validStatuses = ["healthy", "degraded", "failed", "unknown"];
 
     if (
       typeof area !== "string" ||
@@ -67,25 +294,36 @@ app.post("/api/evidence/evaluate-from-reports", async (req, res) => {
 
     const now = new Date();
     const windowStart = new Date(
-      now.getTime() - windowHours * 60 * 60 * 1000
+      now.getTime() - windowHours * 60 * 60 * 1000,
     );
 
-    // Escape user input before using it in a regular expression.
     const escapedArea = area.trim().replace(
       /[.*+?^${}()|[\]\\]/g,
-      "\\$&"
+      "\\$&",
     );
 
-    // Count real reports for this area within the selected window.
+    // Match structured locations and exclude synthetic test reports.
+    // Older records without submittedAt use createdAt as a fallback.
     const receivedReports = await Report.countDocuments({
-      location: {
+      "location.region": {
         $regex: `^${escapedArea}$`,
         $options: "i",
       },
-      createdAt: {
-        $gte: windowStart,
-        $lte: now,
-      },
+      $or: [
+        {
+          submittedAt: {
+            $gte: windowStart,
+            $lte: now,
+          },
+        },
+        {
+          submittedAt: { $exists: false },
+          createdAt: {
+            $gte: windowStart,
+            $lte: now,
+          },
+        },
+      ],
       isSynthetic: { $ne: true },
     });
 
@@ -110,7 +348,7 @@ app.post("/api/evidence/evaluate-from-reports", async (req, res) => {
   } catch (error) {
     console.error(
       "Database-backed evidence evaluation failed:",
-      error.message
+      error.message,
     );
 
     return res.status(500).json({
@@ -119,8 +357,7 @@ app.post("/api/evidence/evaluate-from-reports", async (req, res) => {
   }
 });
 
-
-// Evaluate an evidence situation and save the result.
+// Evaluate manually supplied evidence counts.
 app.post("/api/evidence/evaluate", async (req, res) => {
   try {
     const {
@@ -138,11 +375,12 @@ app.post("/api/evidence/evaluate", async (req, res) => {
       expectedReports < 0 ||
       receivedReports < 0 ||
       !["healthy", "degraded", "failed", "unknown"].includes(
-        channelStatus
+        channelStatus,
       )
     ) {
       return res.status(400).json({
-        error: "Provide area, non-negative integer report counts, and a valid channelStatus.",
+        error:
+          "Provide area, non-negative integer report counts, and a valid channelStatus.",
       });
     }
 
@@ -189,88 +427,26 @@ app.get("/api/evidence/investigations", async (req, res) => {
   }
 });
 
-
-app.post("/api/reports", async (req, res) => {
-  try {
-    const {
-      reportType,
-      symptoms,
-      disasterType,
-      severity,
-      description,
-      location,
-    } = req.body;
-
-    if (
-      !["symptom", "disaster"].includes(reportType) ||
-      typeof location !== "string" ||
-      !location.trim() ||
-      typeof severity !== "string" ||
-      !severity.trim()
-    ) {
-      return res.status(400).json({
-        error: "Valid reportType, location, and severity are required.",
-      });
-    }
-
-    if (
-      reportType === "symptom" &&
-      (!Array.isArray(symptoms) || symptoms.length === 0)
-    ) {
-      return res.status(400).json({
-        error: "Select at least one symptom.",
-      });
-    }
-
-    if (reportType === "disaster" && !disasterType) {
-      return res.status(400).json({
-        error: "Disaster type is required.",
-      });
-    }
-
-    const report = await Report.create({
-      reportType,
-      symptoms: reportType === "symptom" ? symptoms : [],
-      disasterType: reportType === "disaster" ? disasterType : null,
-      severity,
-      description: typeof description === "string" ? description : "",
-      location: location.trim(),
-    });
-
-    return res.status(201).json({
-      message: "Report saved successfully.",
-      report,
-    });
-  } catch (error) {
-    console.error("Report creation failed:", error.message);
-    return res.status(500).json({
-      error: "Unable to save report.",
-    });
-  }
-});
-
-app.get("/api/reports", async (req, res) => {
-  try {
-    const reports = await Report.find()
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
-
-    return res.status(200).json({
-      count: reports.length,
-      reports,
-    });
-  } catch (error) {
-    console.error("Report retrieval failed:", error.message);
-    return res.status(500).json({
-      error: "Unable to retrieve reports.",
-    });
-  }
-});
-
-
+// API 404 handler.
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "API route not found" });
+});
+
+// Global error handler.
+app.use((error, req, res, next) => {
+  if (error?.type === "entity.parse.failed" || error instanceof SyntaxError) {
+    return res.status(400).json({ error: "Malformed JSON request body." });
+  }
+
+  if (error?.type === "entity.too.large") {
+    return res.status(400).json({ error: "Request body is too large." });
+  }
+
+  console.error("Unexpected request error.");
+
+  return res.status(500).json({
+    error: "Internal server error.",
+  });
 });
 
 async function startServer() {
@@ -281,10 +457,13 @@ async function startServer() {
   });
 }
 
-startServer().catch((error) => {
-  console.error(
-    `Unable to start NULL SIGNAL backend: ${error.message}`
-  );
-  process.exitCode = 1;
-});
+// Only start the server when this file is run directly.
+// This allows automated tests to import the Express app.
+if (require.main === module) {
+  startServer().catch((error) => {
+    console.error(`Unable to start NULL SIGNAL backend: ${error.message}`);
+    process.exitCode = 1;
+  });
+}
 
+module.exports = { app };

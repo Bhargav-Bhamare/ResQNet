@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeApp() {
     // Set up navigation
     setupNavigation();
-     // NULL SIGNAL: connect the evaluation form and history button.
+
+    // NULL SIGNAL: connect the evaluation form and history button.
     const nullSignalForm = document.getElementById('null-signal-form');
     const nullSignalRefreshButton = document.getElementById('ns-refresh-history');
     const nullSignalNavLink = document.querySelector('.nav-link[href="#null-signal"]');
@@ -27,10 +28,7 @@ function initializeApp() {
     if (nullSignalNavLink) {
         nullSignalNavLink.addEventListener('click', loadNullSignalHistory);
     }
-    // Initialize location detection
-    detectLocation();
-    detectDisasterLocation();
-    
+
     // Show home page by default
     showPage('home');
 }
@@ -107,124 +105,49 @@ function closeMobileMenu() {
     toggleIcon.className = 'fas fa-bars';
 }
 
-// Location Functions
-function detectLocation() {
-    const locationInput = document.getElementById('location');
-    if (!locationInput) return;
-    
-    locationInput.value = 'Detecting location...';
-    
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                // Simulate reverse geocoding with dummy data
-                const locations = [
-                    'Katraj,Pune,Maharashtra',
-                    'Dadar,Mumbai,Maharashtra',
-                    'Navi Mumbai,Maharashtra',
-                    'Kothrud,Pune,Maharashtra',
-                    'Hinjewadi,Pune,Maharashtra'
-                ];
-                
-                const randomLocation = locations[Math.floor(Math.random() * locations.length)];
-                locationInput.value = randomLocation;
-            },
-            function(error) {
-                locationInput.value = 'Location detection failed. Please enter manually.';
-                locationInput.removeAttribute('readonly');
-            }
-        );
-    } else {
-        locationInput.value = 'Geolocation not supported. Please enter manually.';
-        locationInput.removeAttribute('readonly');
-    }
-}
-
-function detectDisasterLocation() {
-    const locationInput = document.getElementById('disaster-location');
-    if (!locationInput) return;
-    
-    locationInput.value = 'Detecting location...';
-    
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                // Simulate reverse geocoding with dummy data
-                const locations = [
-                    'Himachal Pradesh',
-                    'Kokan East',
-                    'Andhra Pradesh',
-                    'Jammu West',
-                    'Kali Ghati'
-                ];
-                
-                const randomLocation = locations[Math.floor(Math.random() * locations.length)];
-                locationInput.value = randomLocation;
-            },
-            function(error) {
-                locationInput.value = 'Location detection failed. Please enter manually.';
-                locationInput.removeAttribute('readonly');
-            }
-        );
-    } else {
-        locationInput.value = 'Geolocation not supported. Please enter manually.';
-        locationInput.removeAttribute('readonly');
-    }
+// Location is optional and entered manually until a real geocoder is available.
+function focusLocationEntry(inputId) {
+    const locationInput = document.getElementById(inputId);
+    if (locationInput) locationInput.focus();
 }
 
 // Form Submission Functions
-
 async function submitSymptoms(event) {
     event.preventDefault();
 
     const form = event.target;
     const formData = new FormData(form);
     const symptoms = formData.getAll('symptoms');
+    const description = String(formData.get('description') || '').trim();
     const severity = formData.get('severity');
     const location = document.getElementById('location').value.trim();
-    const description = formData.get('description') || '';
 
     if (symptoms.length === 0) {
-        alert('Please select at least one symptom.');
+        showErrorMessage('Please select at least one symptom.');
         return;
     }
 
-    if (!location || location.toLowerCase().includes('detecting')) {
-        alert('Please confirm your location before submitting.');
+    if (description.length > 2000) {
+        showErrorMessage('The description must be 2000 characters or fewer.');
         return;
     }
 
-    showLoadingMessage('Submitting your report...');
+    const report = {
+        reportType: 'symptom',
+        symptoms,
+        severity
+    };
 
-    try {
-        const response = await fetch('/api/reports', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                reportType: 'symptom',
-                symptoms,
-                severity,
-                description,
-                location
-            })
-        });
+    if (description) report.description = description;
+    if (location) report.location = { region: location };
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Could not submit report.');
-        }
-
-        hideLoadingMessage();
-        showSuccessMessage('Your symptom report has been saved successfully.');
-        form.reset();
-        detectLocation();
-    } catch (error) {
-        hideLoadingMessage();
-        alert('Report submission failed: ' + error.message);
-    }
+    await submitReport(
+        form,
+        report,
+        'Submitting your report...',
+        'Your symptom report was saved.'
+    );
 }
-
 
 async function submitDisaster(event) {
     event.preventDefault();
@@ -234,60 +157,100 @@ async function submitDisaster(event) {
 
     const disasterType = formData.get('disaster-type');
     const severity = formData.get('severity');
-    const description = (formData.get('description') || '').trim();
+    const description = String(formData.get('description') || '').trim();
     const location = document.getElementById('disaster-location').value.trim();
 
     if (!disasterType || !severity) {
-        alert('Please fill in all required fields.');
+        showErrorMessage('Please select a disaster type and severity.');
         return;
     }
 
-    if (!location || location.toLowerCase().includes('detecting')) {
-        alert('Please confirm your location before submitting.');
+    if (description.length > 2000) {
+        showErrorMessage('The description must be 2000 characters or fewer.');
         return;
     }
 
-    showLoadingMessage('Submitting disaster report...');
+    const report = {
+        reportType: 'disaster',
+        disasterType,
+        severity
+    };
+
+    if (description) report.description = description;
+    if (location) report.location = { region: location };
+
+    const photoSelected = Boolean(document.getElementById('photo').files.length);
+
+    const successMessage = photoSelected
+        ? 'Your disaster report was saved. The selected photo was only previewed and was not uploaded.'
+        : 'Your disaster report was saved.';
+
+    await submitReport(
+        form,
+        report,
+        'Submitting your report...',
+        successMessage,
+        function() {
+            const photoPreview = document.getElementById('photo-preview');
+
+            if (photoPreview) {
+                photoPreview.innerHTML = '';
+                photoPreview.classList.add('hidden');
+            }
+        }
+    );
+}
+
+async function submitReport(form, report, loadingMessage, successMessage, onSuccess) {
+    const submitButton = form.querySelector('button[type="submit"]');
+
+    if (!submitButton || submitButton.disabled) return;
+
+    submitButton.disabled = true;
+    showLoadingMessage(loadingMessage);
 
     try {
-        const response = await fetch('/api/reports', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                reportType: 'disaster',
-                disasterType,
-                severity,
-                description,
-                location,
-                source: 'resqnet-web'
-            })
-        });
+        let response;
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Could not submit disaster report.');
+        try {
+            response = await fetch('/api/reports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(report)
+            });
+        } catch (error) {
+            showErrorMessage(
+                'Could not reach the report service. Check your connection and try again.'
+            );
+            return;
         }
 
-        hideLoadingMessage();
-        showSuccessMessage(
-            'Disaster report saved successfully. This prototype has not automatically notified emergency services.'
-        );
+        if (response.status !== 201) {
+            const result = await response.json().catch(function() {
+                return {};
+            });
+
+            let message = 'The report could not be saved. Please try again.';
+
+            if (response.status === 400) {
+                message = result.error || 'Please review the report details and try again.';
+            } else if (response.status === 503) {
+                message = 'The report service is temporarily unavailable. Your entries have been kept; please try again.';
+            }
+
+            showErrorMessage(message);
+            return;
+        }
 
         form.reset();
-        detectDisasterLocation();
 
-        const photoPreview = document.getElementById('photo-preview');
-        if (photoPreview) {
-            photoPreview.innerHTML = '';
-            photoPreview.classList.add('hidden');
-        }
+        if (onSuccess) onSuccess();
 
-    } catch (error) {
+        showSuccessMessage(successMessage);
+
+    } finally {
         hideLoadingMessage();
-        alert('Disaster report submission failed: ' + error.message);
+        submitButton.disabled = false;
     }
 }
 
@@ -498,6 +461,32 @@ function showSuccessMessage(message) {
             }
         }, 300);
     }, 5000);
+}
+
+function showErrorMessage(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.setAttribute('role', 'alert');
+    errorDiv.textContent = message;
+    errorDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #C0392B;
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 20px rgba(192, 57, 43, 0.3);
+        z-index: 10000;
+        font-weight: 600;
+        text-align: center;
+        max-width: 90%;
+    `;
+    document.body.appendChild(errorDiv);
+
+    setTimeout(() => {
+        if (errorDiv.parentNode) errorDiv.remove();
+    }, 6000);
 }
 
 // Add event listeners for touch events (mobile support)
