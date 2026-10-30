@@ -119,3 +119,49 @@ configured proxy/network boundaries, HTTPS, secret management, backups,
 account recovery, audit retention controls, and verified institutional
 identity/onboarding procedures. Never treat account role assignment as proof
 of a person's institutional identity or a report's source attribution.
+
+## Investigation history and human review
+
+`POST /api/investigations/:sourceCode` generates evidence through the existing
+deterministic pipeline and persists a new `evidence_review` investigation with
+a unique `inv_<32 lowercase hex characters>` public ID, source/creator
+references, exact evaluation time, requested period count, initial `generated`
+status, and a sanitized snapshot of the complete evidence package. Its optional
+JSON body accepts only `evaluatedAt` and integer `periods`. The existing
+`GET /api/investigations/:sourceCode/evidence` remains a read-only preview; it
+does not create an investigation.
+
+The history endpoints are `GET /api/investigations`,
+`GET /api/investigations/:investigationId`, and
+`GET /api/investigations/:investigationId/reviews`. Authenticated investigators
+and viewers can list and read records only for their assigned sources. Listing
+supports bounded `page`, `limit`, `sourceCode`, `status`, `createdBy`,
+`assignedTo`, and `sort=asc|desc` filters. Details include the immutable
+evidence snapshot and up to 100 most recent review records in chronological
+order. Review-history pagination supports bounded `page` and `limit`. Public
+investigation IDs are distinct from MongoDB document IDs.
+
+Investigators can append notes through
+`POST /api/investigations/:investigationId/notes`, record investigator-assessed
+decisions through `POST /api/investigations/:investigationId/decision`, and
+change status through `PATCH /api/investigations/:investigationId/status`.
+Allowed status transitions are `generated -> under_review`,
+`under_review -> requires_more_information` or `reviewed`,
+`requires_more_information -> under_review`, and `reviewed -> closed`.
+Closed investigations cannot be reopened through this API. Admins can assign
+or unassign through `PATCH /api/investigations/:investigationId/assignment`,
+only to an active investigator who already has access to that source. Viewers
+are read-only. Reviewer identity and timestamps are always assigned by the
+server, and decisions are stored as review history rather than mixed into
+calculated findings.
+
+Evidence snapshots and review records are immutable through the Mongoose model
+and application routes provide no update/delete operations for review history.
+Creation writes the investigation and its initial review record sequentially;
+if a later write or required investigation audit fails, the route attempts a
+compensating deletion and returns an error rather than success. This is not a
+MongoDB transaction: a process crash between writes or a failed compensation
+can leave incomplete records and requires operational reconciliation. Direct
+database administrators can still bypass application-level immutability.
+Review records are append-only for API purposes, not a tamper-proof legal
+record. No real reporting-source investigations are implied by this workflow.

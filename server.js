@@ -19,6 +19,9 @@ const {
   createEvidenceInvestigationsRouter,
 } = require("./routes/evidenceInvestigations");
 const {
+  createInvestigationsRouter,
+} = require("./routes/investigations");
+const {
   createInvestigatorAuthenticationService,
 } = require("./services/investigatorAuthentication");
 const {
@@ -88,6 +91,13 @@ app.use(
   createEvidenceInvestigationsRouter({
     authenticationService: investigatorAuthenticationService,
     sourceAttributionService,
+    authenticate: authenticateInvestigator,
+  }),
+);
+app.use(
+  "/api/investigations",
+  createInvestigationsRouter({
+    authenticationService: investigatorAuthenticationService,
     authenticate: authenticateInvestigator,
   }),
 );

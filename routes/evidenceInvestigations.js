@@ -1,6 +1,9 @@
 const { randomUUID } = require("node:crypto");
+const { randomBytes } = require("node:crypto");
 const express = require("express");
 const InvestigationAudit = require("../models/InvestigationAudit");
+const Investigation = require("../models/Investigation");
+const InvestigationReview = require("../models/InvestigationReview");
 const ReportingSource = require("../models/ReportingSource");
 const {
   createEvidencePipeline,
@@ -30,6 +33,7 @@ const SAFE_ERROR_CODES = new Set([
   "BASELINE_FAILED",
   "ANOMALY_DETECTION_FAILED",
   "EVIDENCE_PACKAGE_FAILED",
+  "INVESTIGATION_PERSISTENCE_FAILED",
 ]);
 
 function getHistoryStart(schedule, evaluatedAt, periods) {
@@ -85,6 +89,8 @@ function createEvidenceInvestigationsRouter({
     ReportingSourceModel: ReportingSource,
   }),
   AuditModel = InvestigationAudit,
+  InvestigationModel = Investigation,
+  ReviewModel = InvestigationReview,
   authenticationService,
   authenticate = createAuthenticationMiddleware(
     authenticationService ||
@@ -94,7 +100,26 @@ function createEvidenceInvestigationsRouter({
 } = {}) {
   const router = express.Router();
 
-  router.get("/:sourceCode/evidence", authenticate, async (request, response) => {
+  async function compensateCreatedInvestigation(investigation, investigationId) {
+    let failed = false;
+    try {
+      await ReviewModel.collection.deleteOne({ investigationId });
+    } catch {
+      failed = true;
+      console.error("Investigation review compensation failed.");
+    }
+    if (investigation) {
+      try {
+        await InvestigationModel.deleteOne({ _id: investigation._id });
+      } catch {
+        failed = true;
+        console.error("Investigation record compensation failed.");
+      }
+    }
+    return !failed;
+  }
+
+  async function handleEvidenceRequest(request, response, persist) {
     const requestedAt = now();
     const sourceCode = request.params.sourceCode;
     const requestId = request.requestId || randomUUID();
@@ -114,6 +139,12 @@ function createEvidenceInvestigationsRouter({
           requestedAt,
           ...(evaluatedAt ? { evaluatedAt } : {}),
           ...(historyStart ? { historyStart } : {}),
+          ...(request.createdInvestigation?.investigationId
+            ? {
+                investigationId:
+                  request.createdInvestigation.investigationId,
+              }
+            : {}),
           outcome,
           ...(errorCode ? { errorCode } : {}),
           requestId,
@@ -151,25 +182,36 @@ function createEvidenceInvestigationsRouter({
           responseStatus = 404;
           responseBody = { error: "Reporting source not found." };
         } else {
-          const queryKeys = Object.keys(request.query);
+          const parameters = persist ? request.body : request.query;
+          const allowedKeys = ["evaluatedAt", "periods"];
+          const queryKeys = Object.keys(parameters || {});
           if (
+            (persist &&
+              (request.query &&
+                Object.keys(request.query).length > 0 ||
+                !parameters ||
+                typeof parameters !== "object" ||
+                Array.isArray(parameters))) ||
             queryKeys.some(
-              (key) => !["evaluatedAt", "periods"].includes(key),
+              (key) => !allowedKeys.includes(key),
             ) ||
-            (request.query.evaluatedAt !== undefined &&
-              !isStrictUtcTimestamp(request.query.evaluatedAt)) ||
-            (request.query.periods !== undefined &&
-              (typeof request.query.periods !== "string" ||
-                !/^[1-9]\d*$/.test(request.query.periods)))
+            (parameters.evaluatedAt !== undefined &&
+              !isStrictUtcTimestamp(parameters.evaluatedAt)) ||
+            (parameters.periods !== undefined &&
+              (typeof parameters.periods !== (persist ? "number" : "string") ||
+                (persist
+                  ? !Number.isSafeInteger(parameters.periods) ||
+                    parameters.periods < 1
+                  : !/^[1-9]\d*$/.test(parameters.periods))))
           ) {
             failureCode = "INVALID_PERIOD_RANGE";
             responseStatus = 400;
             responseBody = { error: "Invalid evidence query parameters." };
           } else {
             evaluatedAt =
-              request.query.evaluatedAt === undefined
+              parameters.evaluatedAt === undefined
                 ? requestedAt
-                : new Date(request.query.evaluatedAt);
+                : new Date(parameters.evaluatedAt);
             if (evaluatedAt > requestedAt) {
               failureCode = "INVALID_EVALUATION_TIME";
               responseStatus = 400;
@@ -180,9 +222,9 @@ function createEvidenceInvestigationsRouter({
               const frequency = source.reportingSchedule?.frequency;
               const maxPeriods = MAX_PERIODS[frequency];
               const periods =
-                request.query.periods === undefined
+                parameters.periods === undefined
                   ? DEFAULT_PERIODS[frequency]
-                  : Number(request.query.periods);
+                  : Number(parameters.periods);
               if (!maxPeriods || periods > maxPeriods) {
                 failureCode = "INVALID_PERIOD_RANGE";
                 responseStatus = 400;
@@ -201,8 +243,88 @@ function createEvidenceInvestigationsRouter({
                     historyStart,
                     evaluatedAt,
                   });
-                responseStatus = 200;
-                responseBody = result.evidencePackage;
+                if (
+                  !result?.evidencePackage ||
+                  (persist &&
+                    (result.evidencePackage.schemaVersion === undefined ||
+                      result.evidencePackage.metadata?.sourceCode !==
+                        sourceCode ||
+                      new Date(
+                        result.evidencePackage.metadata?.evaluatedAt,
+                      ).getTime() !== evaluatedAt.getTime()))
+                ) {
+                  throw Object.assign(
+                    new Error("Pipeline returned an invalid evidence snapshot."),
+                    { code: "EVIDENCE_PACKAGE_FAILED" },
+                  );
+                }
+                let evidenceSnapshot;
+                try {
+                  evidenceSnapshot = JSON.parse(
+                    JSON.stringify(result.evidencePackage),
+                  );
+                } catch (error) {
+                  throw Object.assign(
+                    new Error("Evidence snapshot is not serializable.", {
+                      cause: error,
+                    }),
+                    { code: "EVIDENCE_PACKAGE_FAILED" },
+                  );
+                }
+                if (persist) {
+                  if (!source._id) {
+                    throw Object.assign(
+                      new Error("Configured source is missing its database identifier."),
+                      { code: "SOURCE_NOT_FOUND" },
+                    );
+                  }
+                  const investigationId = `inv_${randomBytes(16).toString("hex")}`;
+                  let investigation;
+                  try {
+                    investigation = await InvestigationModel.create({
+                      recordType: "evidence_review",
+                      investigationId,
+                      sourceId: source._id,
+                      sourceCode,
+                      createdBy: request.investigator.id,
+                      evaluatedAt,
+                      periods,
+                      status: "generated",
+                      evidenceSnapshot,
+                      evidenceVersion: evidenceSnapshot.schemaVersion,
+                    });
+                    await ReviewModel.create({
+                      investigationId,
+                      reviewerId: request.investigator.id,
+                      action: "investigation_created",
+                      newStatus: "generated",
+                    });
+                  } catch (error) {
+                    await compensateCreatedInvestigation(
+                      investigation,
+                      investigationId,
+                    );
+                    throw Object.assign(
+                      new Error("Investigation persistence failed.", {
+                        cause: error,
+                      }),
+                      { code: "INVESTIGATION_PERSISTENCE_FAILED" },
+                    );
+                  }
+                  request.createdInvestigation = {
+                    investigation,
+                    investigationId,
+                  };
+                  responseStatus = 201;
+                  responseBody = {
+                    investigationId,
+                    status: "generated",
+                    evidencePackage: evidenceSnapshot,
+                  };
+                } else {
+                  responseStatus = 200;
+                  responseBody = evidenceSnapshot;
+                }
               }
             }
           }
@@ -236,6 +358,12 @@ function createEvidenceInvestigationsRouter({
         responseStatus = 500;
         responseBody = { error: "Unable to generate evidence." };
       }
+      if (failureCode === "INVESTIGATION_PERSISTENCE_FAILED") {
+        responseStatus = 503;
+        responseBody = {
+          error: "Investigation creation is temporarily unavailable.",
+        };
+      }
       console.error(`Evidence investigation failed (${failureCode}).`);
     }
 
@@ -244,12 +372,23 @@ function createEvidenceInvestigationsRouter({
       failureCode,
     );
     if (!audited) {
+      if (request.createdInvestigation) {
+        const { investigation, investigationId } = request.createdInvestigation;
+        await compensateCreatedInvestigation(investigation, investigationId);
+      }
       return response.status(503).json({
         error: "Investigation audit is temporarily unavailable.",
       });
     }
     return response.status(responseStatus).json(responseBody);
-  });
+  }
+
+  router.get("/:sourceCode/evidence", authenticate, (request, response) =>
+    handleEvidenceRequest(request, response, false),
+  );
+  router.post("/:sourceCode", authenticate, (request, response) =>
+    handleEvidenceRequest(request, response, true),
+  );
 
   return router;
 }

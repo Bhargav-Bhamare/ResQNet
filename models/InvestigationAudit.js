@@ -13,6 +13,10 @@ const investigationAuditSchema = new mongoose.Schema(
       required: true,
       maxlength: 80,
     },
+    investigationId: {
+      type: String,
+      match: /^inv_[a-f0-9]{32}$/,
+    },
     requestedAt: {
       type: Date,
       required: true,
